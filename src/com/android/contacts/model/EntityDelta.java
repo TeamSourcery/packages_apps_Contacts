@@ -16,6 +16,7 @@
 
 package com.android.contacts.model;
 
+import com.android.contacts.test.NeededForTesting;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Maps;
 import com.google.android.collect.Sets;
@@ -23,6 +24,7 @@ import com.google.android.collect.Sets;
 import android.content.ContentProviderOperation;
 import android.content.ContentProviderOperation.Builder;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Entity;
 import android.content.Entity.NamedContentValues;
 import android.net.Uri;
@@ -76,7 +78,7 @@ public class EntityDelta implements Parcelable {
      * Internal map of children values from {@link Entity#getSubValues()}, which
      * we store here sorted into {@link Data#MIMETYPE} bins.
      */
-    private HashMap<String, ArrayList<ValuesDelta>> mEntries = Maps.newHashMap();
+    private final HashMap<String, ArrayList<ValuesDelta>> mEntries = Maps.newHashMap();
 
     public EntityDelta() {
     }
@@ -183,6 +185,7 @@ public class EntityDelta implements Parcelable {
      *     doesn't exist (may be a primary, or just a random item
      * @return
      */
+    @NeededForTesting
     public ValuesDelta getSuperPrimaryEntry(String mimeType, boolean forceSelection) {
         final ArrayList<ValuesDelta> mimeEntries = getMimeEntries(mimeType, false);
         if (mimeEntries == null) return null;
@@ -205,6 +208,20 @@ public class EntityDelta implements Parcelable {
             return primary;
         }
         return mimeEntries.size() > 0 ? mimeEntries.get(0) : null;
+    }
+
+    /**
+     * Return the AccountType that this raw-contact belongs to.
+     */
+    public AccountType getRawContactAccountType(Context context) {
+        ContentValues entityValues = getValues().getCompleteValues();
+        String type = entityValues.getAsString(RawContacts.ACCOUNT_TYPE);
+        String dataSet = entityValues.getAsString(RawContacts.DATA_SET);
+        return AccountTypeManager.getInstance(context).getAccountType(type, dataSet);
+    }
+
+    public Long getRawContactId() {
+        return getValues().getAsLong(RawContacts._ID);
     }
 
     /**
@@ -337,15 +354,18 @@ public class EntityDelta implements Parcelable {
     public String toString() {
         final StringBuilder builder = new StringBuilder();
         builder.append("\n(");
+        builder.append("Uri=");
+        builder.append(mContactsQueryUri);
+        builder.append(", Values=");
         builder.append(mValues != null ? mValues.toString() : "null");
-        builder.append(") = {");
+        builder.append(", Entries={");
         for (ArrayList<ValuesDelta> mimeEntries : mEntries.values()) {
             for (ValuesDelta child : mimeEntries) {
                 builder.append("\n\t");
                 child.toString(builder);
             }
         }
-        builder.append("\n}\n");
+        builder.append("\n})\n");
         return builder.toString();
     }
 
@@ -564,6 +584,7 @@ public class EntityDelta implements Parcelable {
             return entry;
         }
 
+        @NeededForTesting
         public ContentValues getAfter() {
             return mAfter;
         }
@@ -760,6 +781,11 @@ public class EntityDelta implements Parcelable {
             mAfter.putNull(key);
         }
 
+        public void copyStringFrom(ValuesDelta from, String key) {
+            ensureUpdate();
+            put(key, from.getAsString(key));
+        }
+
         /**
          * Return set of all keys defined through this object.
          */
@@ -847,6 +873,11 @@ public class EntityDelta implements Parcelable {
          */
         public void toString(StringBuilder builder) {
             builder.append("{ ");
+            builder.append("IdColumn=");
+            builder.append(mIdColumn);
+            builder.append(", FromTemplate=");
+            builder.append(mFromTemplate);
+            builder.append(", ");
             for (String key : this.keySet()) {
                 builder.append(key);
                 builder.append("=");

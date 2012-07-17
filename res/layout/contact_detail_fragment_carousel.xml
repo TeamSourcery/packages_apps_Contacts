@@ -19,14 +19,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:scrollbars="none"
-    android:orientation="horizontal">
+    android:orientation="horizontal"
+    android:baselineAligned="false">
 
     <!--
       Container for the "About" page fragment on the contact card for a contact
       with social updates. This view ID must match with a view ID in the layout
       that is used after an orientation change.
     -->
-    <FrameLayout
+    <view
+        class="com.android.contacts.widget.FrameLayoutWithOverlay"
         android:id="@+id/about_fragment_container"
         android:layout_width="0dip"
         android:layout_height="match_parent"
@@ -39,13 +41,14 @@
       with social updates. This view ID must match with a view ID in the layout
       that is used after an orientation change.
     -->
-    <FrameLayout
+    <view
+        class="com.android.contacts.widget.FrameLayoutWithOverlay"
         android:id="@+id/updates_fragment_container"
         android:layout_width="0dip"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:visibility="gone"
         android:focusable="true"
-        android:focusableInTouchMode="true" />
+        android:focusableInTouchMode="true"
+        android:visibility="gone" />
 
 </LinearLayout>

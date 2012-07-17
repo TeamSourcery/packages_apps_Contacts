@@ -16,20 +16,24 @@
 
 package com.android.contacts;
 
+import com.android.contacts.activities.DialtactsActivity;
 import com.android.contacts.model.AccountType;
 import com.android.contacts.model.AccountTypeManager;
 import com.android.contacts.model.AccountWithDataSet;
 import com.android.contacts.test.NeededForTesting;
-import com.android.i18n.phonenumbers.PhoneNumberUtil;
+import com.android.contacts.util.Constants;
 
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Rect;
 import android.location.CountryDetector;
 import android.net.Uri;
 import android.provider.ContactsContract;
 import android.provider.ContactsContract.CommonDataKinds.Im;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
+import android.provider.ContactsContract.DisplayPhoto;
+import android.provider.ContactsContract.QuickContact;
 import android.telephony.PhoneNumberUtils;
 import android.text.TextUtils;
 import android.view.View;
@@ -41,6 +45,7 @@ public class ContactsUtils {
     private static final String TAG = "ContactsUtils";
     private static final String WAIT_SYMBOL_AS_STRING = String.valueOf(PhoneNumberUtils.WAIT);
 
+    private static int sThumbnailSize = -1;
 
     // TODO find a proper place for the canonical version of these
     public interface ProviderNames {
@@ -123,36 +128,41 @@ public class ContactsUtils {
         // mimetypes could have more sophisticated matching is the future, e.g. addresses)
         if (!TextUtils.equals(Phone.CONTENT_ITEM_TYPE, mimetype1)) return false;
 
-        // Now do the full phone number thing. split into parts, seperated by waiting symbol
-        // and compare them individually
-        final String[] dataParts1 = data1.toString().split(WAIT_SYMBOL_AS_STRING);
-        final String[] dataParts2 = data2.toString().split(WAIT_SYMBOL_AS_STRING);
-        if (dataParts1.length != dataParts2.length) return false;
-        final PhoneNumberUtil util = PhoneNumberUtil.getInstance();
-        for (int i = 0; i < dataParts1.length; i++) {
-            final String dataPart1 = dataParts1[i];
-            final String dataPart2 = dataParts2[i];
+        return shouldCollapsePhoneNumbers(data1.toString(), data2.toString());
+    }
 
-            // substrings equal? shortcut, don't parse
-            if (TextUtils.equals(dataPart1, dataPart2)) continue;
+    private static final boolean shouldCollapsePhoneNumbers(
+            String number1WithLetters, String number2WithLetters) {
+        final String number1 = PhoneNumberUtils.convertKeypadLettersToDigits(number1WithLetters);
+        final String number2 = PhoneNumberUtils.convertKeypadLettersToDigits(number2WithLetters);
 
-            // do a full parse of the numbers
-            switch (util.isNumberMatch(dataPart1, dataPart2)) {
-                case NOT_A_NUMBER:
-                    // don't understand the numbers? let's play it safe
-                    return false;
-                case NO_MATCH:
-                    return false;
-                case EXACT_MATCH:
-                case SHORT_NSN_MATCH:
-                case NSN_MATCH:
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown result value from phone number " +
-                            "library");
+        int index1 = 0;
+        int index2 = 0;
+        for (;;) {
+            // Skip formatting characters.
+            while (index1 < number1.length() &&
+                    !PhoneNumberUtils.isNonSeparator(number1.charAt(index1))) {
+                index1++;
             }
+            while (index2 < number2.length() &&
+                    !PhoneNumberUtils.isNonSeparator(number2.charAt(index2))) {
+                index2++;
+            }
+            // If both have finished, match.  If only one has finished, not match.
+            final boolean number1End = (index1 == number1.length());
+            final boolean number2End = (index2 == number2.length());
+            if (number1End) {
+                return number2End;
+            }
+            if (number2End) return false;
+
+            // If the non-formatting characters are different, not match.
+            if (number1.charAt(index1) != number2.charAt(index2)) return false;
+
+            // Go to the next characters.
+            index1++;
+            index2++;
         }
-        return true;
     }
 
     /**
@@ -194,21 +204,82 @@ public class ContactsUtils {
      * Returns the intent to launch for the given invitable account type and contact lookup URI.
      * This will return null if the account type is not invitable (i.e. there is no
      * {@link AccountType#getInviteContactActivityClassName()} or
-     * {@link AccountType#resPackageName}).
+     * {@link AccountType#syncAdapterPackageName}).
      */
     public static Intent getInvitableIntent(AccountType accountType, Uri lookupUri) {
-        String resPackageName = accountType.resPackageName;
+        String syncAdapterPackageName = accountType.syncAdapterPackageName;
         String className = accountType.getInviteContactActivityClassName();
-        if (TextUtils.isEmpty(resPackageName) || TextUtils.isEmpty(className)) {
+        if (TextUtils.isEmpty(syncAdapterPackageName) || TextUtils.isEmpty(className)) {
             return null;
         }
         Intent intent = new Intent();
-        intent.setClassName(resPackageName, className);
+        intent.setClassName(syncAdapterPackageName, className);
 
         intent.setAction(ContactsContract.Intents.INVITE_CONTACT);
 
         // Data is the lookup URI.
         intent.setData(lookupUri);
+        return intent;
+    }
+
+    /**
+     * Return Uri with an appropriate scheme, accepting Voicemail, SIP, and usual phone call
+     * numbers.
+     */
+    public static Uri getCallUri(String number) {
+        if (PhoneNumberUtils.isVoiceMailNumber(number)) {
+            return Uri.parse("voicemail:");
+        }
+        if (PhoneNumberUtils.isUriNumber(number)) {
+             return Uri.fromParts(Constants.SCHEME_SIP, number, null);
+        }
+        return Uri.fromParts(Constants.SCHEME_TEL, number, null);
+     }
+
+    /**
+     * Return an Intent for making a phone call. Scheme (e.g. tel, sip) will be determined
+     * automatically.
+     */
+    public static Intent getCallIntent(String number) {
+        return getCallIntent(number, null);
+    }
+
+    /**
+     * Return an Intent for making a phone call. A given Uri will be used as is (without any
+     * sanity check).
+     */
+    public static Intent getCallIntent(Uri uri) {
+        return getCallIntent(uri, null);
+    }
+
+    /**
+     * A variant of {@link #getCallIntent(String)} but also accept a call origin. For more
+     * information about call origin, see comments in Phone package (PhoneApp).
+     */
+    public static Intent getCallIntent(String number, String callOrigin) {
+        return getCallIntent(getCallUri(number), callOrigin);
+    }
+
+    /**
+     * A variant of {@link #getCallIntent(Uri)} but also accept a call origin. For more
+     * information about call origin, see comments in Phone package (PhoneApp).
+     */
+    public static Intent getCallIntent(Uri uri, String callOrigin) {
+        final Intent intent = new Intent(Intent.ACTION_CALL_PRIVILEGED, uri);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (callOrigin != null) {
+            intent.putExtra(DialtactsActivity.EXTRA_CALL_ORIGIN, callOrigin);
+        }
+        return intent;
+    }
+
+    /**
+     * Return an Intent for launching voicemail screen.
+     */
+    public static Intent getVoicemailIntent() {
+        final Intent intent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
+                Uri.fromParts("voicemail", "", null));
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         return intent;
     }
 
@@ -239,5 +310,25 @@ public class ContactsUtils {
         rect.right = (int) ((pos[0] + view.getWidth()) * appScale + 0.5f);
         rect.bottom = (int) ((pos[1] + view.getHeight()) * appScale + 0.5f);
         return rect;
+    }
+
+    /**
+     * Returns the size (width and height) of thumbnail pictures as configured in the provider. This
+     * can safely be called from the UI thread, as the provider can serve this without performing
+     * a database access
+     */
+    public static int getThumbnailSize(Context context) {
+        if (sThumbnailSize == -1) {
+            final Cursor c = context.getContentResolver().query(
+                    DisplayPhoto.CONTENT_MAX_DIMENSIONS_URI,
+                    new String[] { DisplayPhoto.THUMBNAIL_MAX_DIM }, null, null, null);
+            try {
+                c.moveToFirst();
+                sThumbnailSize = c.getInt(0);
+            } finally {
+                c.close();
+            }
+        }
+        return sThumbnailSize;
     }
 }

@@ -43,10 +43,10 @@ public class ExchangeAccountType extends BaseAccountType {
 
     public static final String ACCOUNT_TYPE = "com.android.exchange";
 
-    public ExchangeAccountType(Context context, String resPackageName) {
+    public ExchangeAccountType(Context context, String authenticatorPackageName) {
         this.accountType = ACCOUNT_TYPE;
-        this.resPackageName = null;
-        this.summaryResPackageName = resPackageName;
+        this.resourcePackageName = null;
+        this.syncAdapterPackageName = authenticatorPackageName;
 
         try {
             addDataKindStructuredName(context);
@@ -169,8 +169,8 @@ public class ExchangeAccountType extends BaseAccountType {
 
         kind.typeColumn = Phone.TYPE;
         kind.typeList = Lists.newArrayList();
-        kind.typeList.add(buildPhoneType(Phone.TYPE_HOME).setSpecificMax(2));
         kind.typeList.add(buildPhoneType(Phone.TYPE_MOBILE).setSpecificMax(1));
+        kind.typeList.add(buildPhoneType(Phone.TYPE_HOME).setSpecificMax(2));
         kind.typeList.add(buildPhoneType(Phone.TYPE_WORK).setSpecificMax(2));
         kind.typeList.add(buildPhoneType(Phone.TYPE_FAX_WORK).setSecondary(true)
                 .setSpecificMax(1));

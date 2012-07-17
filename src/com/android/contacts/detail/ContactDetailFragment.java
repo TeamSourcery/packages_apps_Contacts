@@ -26,6 +26,7 @@ import com.android.contacts.GroupMetaData;
 import com.android.contacts.R;
 import com.android.contacts.TypePrecedence;
 import com.android.contacts.activities.ContactDetailActivity.FragmentKeyListener;
+import com.android.contacts.detail.ContactDetailPhotoSetter;
 import com.android.contacts.editor.SelectAccountDialogFragment;
 import com.android.contacts.model.AccountType;
 import com.android.contacts.model.AccountType.EditType;
@@ -37,20 +38,18 @@ import com.android.contacts.model.EntityDelta.ValuesDelta;
 import com.android.contacts.model.EntityDeltaList;
 import com.android.contacts.model.EntityModifier;
 import com.android.contacts.util.AccountsListAdapter.AccountListFilter;
+import com.android.contacts.util.ClipboardUtils;
 import com.android.contacts.util.Constants;
 import com.android.contacts.util.DataStatus;
 import com.android.contacts.util.DateUtils;
-import com.android.contacts.util.StructuredPostalUtils;
 import com.android.contacts.util.PhoneCapabilityTester;
-import com.android.contacts.widget.TransitionAnimationView;
+import com.android.contacts.util.StructuredPostalUtils;
 import com.android.internal.telephony.ITelephony;
 import com.google.common.annotations.VisibleForTesting;
 
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.SearchManager;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
@@ -84,8 +83,6 @@ import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.Directory;
 import android.provider.ContactsContract.DisplayNameSources;
-import android.provider.ContactsContract.Intents.UI;
-import android.provider.ContactsContract.PhoneLookup;
 import android.provider.ContactsContract.RawContacts;
 import android.provider.ContactsContract.StatusUpdates;
 import android.telephony.PhoneNumberUtils;
@@ -93,11 +90,15 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.DragEvent;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.View.OnDragListener;
+import android.view.View.OnTouchListener;
 import android.view.ViewGroup;
 import android.widget.AbsListView.OnScrollListener;
 import android.widget.AdapterView;
@@ -105,13 +106,11 @@ import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.BaseAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.ListAdapter;
 import android.widget.ListPopupWindow;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -119,7 +118,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ContactDetailFragment extends Fragment implements FragmentKeyListener, ViewOverlay,
+public class ContactDetailFragment extends Fragment implements FragmentKeyListener,
         SelectAccountDialogFragment.Listener, OnItemClickListener {
 
     private static final String TAG = "ContactDetailFragment";
@@ -133,13 +132,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     private static final String KEY_CONTACT_URI = "contactUri";
     private static final String KEY_LIST_STATE = "liststate";
 
-    // TODO: Make maxLines a field in {@link DataKind}
-    private static final int WEBSITE_MAX_LINES = 1;
-    private static final int SIP_ADDRESS_MAX_LINES= 1;
-    private static final int POSTAL_ADDRESS_MAX_LINES = 10;
-    private static final int GROUP_MAX_LINES = 10;
-    private static final int NOTE_MAX_LINES = 100;
-
     private Context mContext;
     private View mView;
     private OnScrollListener mVerticalScrollListener;
@@ -147,22 +139,25 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     private Listener mListener;
 
     private ContactLoader.Result mContactData;
-    private ImageView mStaticPhotoView;
+    private ViewGroup mStaticPhotoContainer;
+    private View mPhotoTouchOverlay;
     private ListView mListView;
     private ViewAdapter mAdapter;
     private Uri mPrimaryPhoneUri = null;
     private ViewEntryDimensions mViewEntryDimensions;
 
+    private final ContactDetailPhotoSetter mPhotoSetter = new ContactDetailPhotoSetter();
+
     private Button mQuickFixButton;
     private QuickFix mQuickFix;
-    private int mNumPhoneNumbers = 0;
     private String mDefaultCountryIso;
     private boolean mContactHasSocialUpdates;
     private boolean mShowStaticPhoto = true;
 
     private final QuickFix[] mPotentialQuickFixes = new QuickFix[] {
             new MakeLocalCopyQuickFix(),
-            new AddToMyContactsQuickFix() };
+            new AddToMyContactsQuickFix()
+    };
 
     /**
      * Device capability: Set during buildEntries and used in the long-press context menu
@@ -185,22 +180,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
      * we're loading data.
      */
     private View mEmptyView;
-
-    /**
-     * Initial alpha value to set on the alpha layer.
-     */
-    private float mInitialAlphaValue;
-
-    /**
-     * This optional view adds an alpha layer over the entire fragment.
-     */
-    private View mAlphaLayer;
-
-    /**
-     * This optional view adds a layer over the entire fragment so that when visible, it intercepts
-     * all touch events on the fragment.
-     */
-    private View mTouchInterceptLayer;
 
     /**
      * Saved state of the {@link ListView}. This must be saved and applied to the {@ListView} only
@@ -229,10 +208,40 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     private ArrayList<ViewEntry> mAllEntries = new ArrayList<ViewEntry>();
     private LayoutInflater mInflater;
 
-    private boolean mTransitionAnimationRequested;
-
     private boolean mIsUniqueNumber;
     private boolean mIsUniqueEmail;
+
+    private ListPopupWindow mPopup;
+
+    /**
+     * This is to forward touch events to the list view to enable users to scroll the list view
+     * from the blank area underneath the static photo when the layout with static photo is used.
+     */
+    private OnTouchListener mForwardTouchToListView = new OnTouchListener() {
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            if (mListView != null) {
+                mListView.dispatchTouchEvent(event);
+                return true;
+            }
+            return false;
+        }
+    };
+
+    /**
+     * This is to forward drag events to the list view to enable users to scroll the list view
+     * from the blank area underneath the static photo when the layout with static photo is used.
+     */
+    private OnDragListener mForwardDragToListView = new OnDragListener() {
+        @Override
+        public boolean onDrag(View v, DragEvent event) {
+            if (mListView != null) {
+                mListView.dispatchDragEvent(event);
+                return true;
+            }
+            return false;
+        }
+    };
 
     public ContactDetailFragment() {
         // Explicit constructor for inflation
@@ -258,6 +267,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
 
     @Override
     public void onPause() {
+        dismissPopupIfShown();
         super.onPause();
     }
 
@@ -277,23 +287,23 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedState) {
         mView = inflater.inflate(R.layout.contact_detail_fragment, container, false);
+        // Set the touch and drag listener to forward the event to the mListView so that
+        // vertical scrolling can happen from outside of the list view.
+        mView.setOnTouchListener(mForwardTouchToListView);
+        mView.setOnDragListener(mForwardDragToListView);
 
         mInflater = inflater;
 
-        mStaticPhotoView = (ImageView) mView.findViewById(R.id.photo);
+        mStaticPhotoContainer = (ViewGroup) mView.findViewById(R.id.static_photo_container);
+        mPhotoTouchOverlay = mView.findViewById(R.id.photo_touch_intercept_overlay);
 
         mListView = (ListView) mView.findViewById(android.R.id.list);
-        mListView.setScrollBarStyle(ListView.SCROLLBARS_OUTSIDE_OVERLAY);
         mListView.setOnItemClickListener(this);
         mListView.setItemsCanFocus(true);
         mListView.setOnScrollListener(mVerticalScrollListener);
 
         // Don't set it to mListView yet.  We do so later when we bind the adapter.
         mEmptyView = mView.findViewById(android.R.id.empty);
-
-        mTouchInterceptLayer = mView.findViewById(R.id.touch_intercept_overlay);
-        mAlphaLayer = mView.findViewById(R.id.alpha_overlay);
-        ContactDetailDisplayUtils.setAlphaOnViewBackground(mAlphaLayer, mInitialAlphaValue);
 
         mQuickFixButton = (Button) mView.findViewById(R.id.contact_quick_fix);
         mQuickFixButton.setOnClickListener(new OnClickListener() {
@@ -314,38 +324,8 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         return mView;
     }
 
-    protected View inflate(int resource, ViewGroup root, boolean attachToRoot) {
-        return mInflater.inflate(resource, root, attachToRoot);
-    }
-
     public void setListener(Listener value) {
         mListener = value;
-    }
-
-    @Override
-    public void setAlphaLayerValue(float alpha) {
-        // If the alpha layer is not ready yet, store it for later when the view is initialized
-        if (mAlphaLayer == null) {
-            mInitialAlphaValue = alpha;
-        } else {
-            // Otherwise set the value immediately
-            ContactDetailDisplayUtils.setAlphaOnViewBackground(mAlphaLayer, alpha);
-        }
-    }
-
-    @Override
-    public void enableTouchInterceptor(OnClickListener clickListener) {
-        if (mTouchInterceptLayer != null) {
-            mTouchInterceptLayer.setVisibility(View.VISIBLE);
-            mTouchInterceptLayer.setOnClickListener(clickListener);
-        }
-    }
-
-    @Override
-    public void disableTouchInterceptor() {
-        if (mTouchInterceptLayer != null) {
-            mTouchInterceptLayer.setVisibility(View.GONE);
-        }
     }
 
     protected Context getContext() {
@@ -376,6 +356,9 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         mShowStaticPhoto = showPhoto;
     }
 
+    /**
+     * Shows the contact detail with a message indicating there are no contact details.
+     */
     public void showEmptyState() {
         setData(null, null);
     }
@@ -424,13 +407,11 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
             getActivity().invalidateOptionsMenu();
         }
 
-        if (mTransitionAnimationRequested) {
-            TransitionAnimationView.startAnimation(mView, mContactData == null);
-            mTransitionAnimationRequested = false;
-        }
-
         if (mContactData == null) {
             mView.setVisibility(View.INVISIBLE);
+            if (mStaticPhotoContainer != null) {
+                mStaticPhotoContainer.setVisibility(View.GONE);
+            }
             mAllEntries.clear();
             if (mAdapter != null) {
                 mAdapter.notifyDataSetChanged();
@@ -442,16 +423,28 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         mContactHasSocialUpdates = !mContactData.getStreamItems().isEmpty();
 
         // Setup the photo if applicable
-        if (mStaticPhotoView != null) {
-            // The presence of a static photo view is not sufficient to determine whether or not
-            // we should show the photo. Check the mShowStaticPhoto flag which can be set by an
+        if (mStaticPhotoContainer != null) {
+            // The presence of a static photo container is not sufficient to determine whether or
+            // not we should show the photo. Check the mShowStaticPhoto flag which can be set by an
             // outside class depending on screen size, layout, and whether the contact has social
             // updates or not.
             if (mShowStaticPhoto) {
-                mStaticPhotoView.setVisibility(View.VISIBLE);
-                ContactDetailDisplayUtils.setPhoto(mContext, mContactData, mStaticPhotoView);
+                mStaticPhotoContainer.setVisibility(View.VISIBLE);
+                final ImageView photoView = (ImageView) mStaticPhotoContainer.findViewById(
+                        R.id.photo);
+                final boolean expandPhotoOnClick = mContactData.getPhotoUri() != null;
+                final OnClickListener listener = mPhotoSetter.setupContactPhotoForClick(
+                        mContext, mContactData, photoView, expandPhotoOnClick);
+                if (mPhotoTouchOverlay != null) {
+                    mPhotoTouchOverlay.setVisibility(View.VISIBLE);
+                    if (expandPhotoOnClick || mContactData.isWritableContact(mContext)) {
+                        mPhotoTouchOverlay.setOnClickListener(listener);
+                    } else {
+                        mPhotoTouchOverlay.setClickable(false);
+                    }
+                }
             } else {
-                mStaticPhotoView.setVisibility(View.GONE);
+                mStaticPhotoContainer.setVisibility(View.GONE);
             }
         }
 
@@ -541,7 +534,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         mRawContactIds.clear();
 
         mPrimaryPhoneUri = null;
-        mNumPhoneNumbers = 0;
 
         final AccountTypeManager accountTypes = AccountTypeManager.getInstance(mContext);
 
@@ -586,6 +578,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                 final DetailViewEntry entry = DetailViewEntry.fromValues(mContext, mimeType, kind,
                         dataId, entryValues, mContactData.isDirectoryEntry(),
                         mContactData.getDirectoryId());
+                entry.maxLines = kind.maxLinesForDisplay;
 
                 final boolean hasData = !TextUtils.isEmpty(entry.data);
                 Integer superPrimary = entryValues.getAsInteger(Data.IS_SUPER_PRIMARY);
@@ -595,13 +588,12 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                     // Always ignore the name. It is shown in the header if set
                 } else if (Phone.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build phone entries
-                    mNumPhoneNumbers++;
                     String phoneNumberE164 =
-                            entryValues.getAsString(PhoneLookup.NORMALIZED_NUMBER);
+                            entryValues.getAsString(Phone.NORMALIZED_NUMBER);
                     entry.data = PhoneNumberUtils.formatNumber(
                             entry.data, phoneNumberE164, mDefaultCountryIso);
-                    final Intent phoneIntent = mHasPhone ? new Intent(Intent.ACTION_CALL_PRIVILEGED,
-                            Uri.fromParts(Constants.SCHEME_TEL, entry.data, null)) : null;
+                    final Intent phoneIntent = mHasPhone ?
+                            ContactsUtils.getCallIntent(entry.data) : null;
                     final Intent smsIntent = mHasSms ? new Intent(Intent.ACTION_SENDTO,
                             Uri.fromParts(Constants.SCHEME_SMSTO, entry.data, null)) : null;
 
@@ -623,13 +615,26 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                     if (isSuperPrimary) mPrimaryPhoneUri = entry.uri;
 
                     entry.isPrimary = isSuperPrimary;
-                    mPhoneEntries.add(entry);
+
+                    // If the entry is a primary entry, then render it first in the view.
+                    if (entry.isPrimary) {
+                        // add to beginning of list so that this phone number shows up first
+                        mPhoneEntries.add(0, entry);
+                    } else {
+                        // add to end of list
+                        mPhoneEntries.add(entry);
+                    }
                 } else if (Email.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build email entries
                     entry.intent = new Intent(Intent.ACTION_SENDTO,
                             Uri.fromParts(Constants.SCHEME_MAILTO, entry.data, null));
                     entry.isPrimary = isSuperPrimary;
-                    mEmailEntries.add(entry);
+                    // If entry is a primary entry, then render it first in the view.
+                    if (entry.isPrimary) {
+                        mEmailEntries.add(0, entry);
+                    } else {
+                        mEmailEntries.add(entry);
+                    }
 
                     // When Email rows have status, create additional Im row
                     final DataStatus status = mContactData.getStatuses().get(entry.id);
@@ -641,22 +646,22 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                                 imKind, dataId, entryValues, mContactData.isDirectoryEntry(),
                                 mContactData.getDirectoryId());
                         buildImActions(mContext, imEntry, entryValues);
-                        imEntry.applyStatus(status, false);
+                        imEntry.setPresence(status.getPresence());
+                        imEntry.maxLines = imKind.maxLinesForDisplay;
                         mImEntries.add(imEntry);
                     }
                 } else if (StructuredPostal.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build postal entries
-                    entry.maxLines = POSTAL_ADDRESS_MAX_LINES;
                     entry.intent = StructuredPostalUtils.getViewPostalAddressIntent(entry.data);
                     mPostalEntries.add(entry);
                 } else if (Im.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build IM entries
                     buildImActions(mContext, entry, entryValues);
 
-                    // Apply presence and status details when available
+                    // Apply presence when available
                     final DataStatus status = mContactData.getStatuses().get(entry.id);
                     if (status != null) {
-                        entry.applyStatus(status, false);
+                        entry.setPresence(status.getPresence());
                     }
                     mImEntries.add(entry);
                 } else if (Organization.CONTENT_ITEM_TYPE.equals(mimeType)) {
@@ -678,12 +683,10 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                 } else if (Note.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build note entries
                     entry.uri = null;
-                    entry.maxLines = NOTE_MAX_LINES;
                     mNoteEntries.add(entry);
                 } else if (Website.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build Website entries
                     entry.uri = null;
-                    entry.maxLines = WEBSITE_MAX_LINES;
                     try {
                         WebAddress webAddress = new WebAddress(entry.data);
                         entry.intent = new Intent(Intent.ACTION_VIEW,
@@ -695,9 +698,8 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                 } else if (SipAddress.CONTENT_ITEM_TYPE.equals(mimeType) && hasData) {
                     // Build SipAddress entries
                     entry.uri = null;
-                    entry.maxLines = SIP_ADDRESS_MAX_LINES;
                     if (mHasSip) {
-                        entry.intent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
+                        entry.intent = ContactsUtils.getCallIntent(
                                 Uri.fromParts(Constants.SCHEME_SIP, entry.data, null));
                     } else {
                         entry.intent = null;
@@ -759,7 +761,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
             entry.mimetype = GroupMembership.MIMETYPE;
             entry.kind = mContext.getString(R.string.groupsLabel);
             entry.data = sb.toString();
-            entry.maxLines = GROUP_MAX_LINES;
             mGroupEntries.add(entry);
         }
     }
@@ -851,7 +852,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         for (AccountType accountType : mOtherEntriesMap.keySet()) {
 
             // Add a title for each third party app
-            mAllEntries.add(NetworkTitleViewEntry.fromAccountType(mContext, accountType));
+            mAllEntries.add(new NetworkTitleViewEntry(mContext, accountType));
 
             for (DetailViewEntry detailEntry : mOtherEntriesMap.get(accountType)) {
                 // Add indented separator
@@ -907,7 +908,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         };
 
         // Finally create the entry.
-        mAllEntries.add(NetworkTitleViewEntry.forMoreNetworks(mContext, onClickListener));
+        mAllEntries.add(new AddConnectionViewEntry(mContext, onClickListener));
     }
 
     /**
@@ -1045,23 +1046,31 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
      */
     private void showListPopup(View anchorView, ListAdapter adapter,
             final AdapterView.OnItemClickListener onItemClickListener) {
-        final ListPopupWindow popup = new ListPopupWindow(mContext, null);
-        popup.setAnchorView(anchorView);
-        popup.setWidth(anchorView.getWidth());
-        popup.setAdapter(adapter);
-        popup.setModal(true);
+        dismissPopupIfShown();
+        mPopup = new ListPopupWindow(mContext, null);
+        mPopup.setAnchorView(anchorView);
+        mPopup.setWidth(anchorView.getWidth());
+        mPopup.setAdapter(adapter);
+        mPopup.setModal(true);
 
         // We need to wrap the passed onItemClickListener here, so that we can dismiss() the
         // popup afterwards.  Otherwise we could directly use the passed listener.
-        popup.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        mPopup.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position,
                     long id) {
                 onItemClickListener.onItemClick(parent, view, position, id);
-                popup.dismiss();
+                dismissPopupIfShown();
             }
         });
-        popup.show();
+        mPopup.show();
+    }
+
+    private void dismissPopupIfShown() {
+        if (mPopup != null && mPopup.isShowing()) {
+            mPopup.dismiss();
+        }
+        mPopup = null;
     }
 
     /**
@@ -1156,35 +1165,43 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     }
 
     /**
-     * A title for a section of contact details from a single 3rd party network.  It's also
-     * used for the "More networks" entry, which has the same layout.
+     * A title for a section of contact details from a single 3rd party network.
      */
     private static class NetworkTitleViewEntry extends ViewEntry {
         private final Drawable mIcon;
         private final CharSequence mLabel;
-        private final View.OnClickListener mOnClickListener;
 
-        private NetworkTitleViewEntry(Drawable icon, CharSequence label, View.OnClickListener
-                onClickListener) {
+        public NetworkTitleViewEntry(Context context, AccountType type) {
             super(ViewAdapter.VIEW_TYPE_NETWORK_TITLE_ENTRY);
-            this.mIcon = icon;
-            this.mLabel = label;
-            this.mOnClickListener = onClickListener;
+            this.mIcon = type.getDisplayIcon(context);
+            this.mLabel = type.getDisplayLabel(context);
             this.isEnabled = false;
         }
 
-        public static NetworkTitleViewEntry fromAccountType(Context context, AccountType type) {
-            return new NetworkTitleViewEntry(
-                    type.getDisplayIcon(context), type.getDisplayLabel(context), null);
+        public Drawable getIcon() {
+            return mIcon;
         }
 
-        public static NetworkTitleViewEntry forMoreNetworks(Context context, View.OnClickListener
-                onClickListener) {
-            // TODO Icon is temporary.  Need proper one.
-            return new NetworkTitleViewEntry(
-                    context.getResources().getDrawable(R.drawable.ic_menu_add_field_holo_light),
-                    context.getString(R.string.add_connection_button),
-                    onClickListener);
+        public CharSequence getLabel() {
+            return mLabel;
+        }
+    }
+
+    /**
+     * This is used for the "Add Connections" entry.
+     */
+    private static class AddConnectionViewEntry extends ViewEntry {
+        private final Drawable mIcon;
+        private final CharSequence mLabel;
+        private final View.OnClickListener mOnClickListener;
+
+        private AddConnectionViewEntry(Context context, View.OnClickListener onClickListener) {
+            super(ViewAdapter.VIEW_TYPE_ADD_CONNECTION_ENTRY);
+            this.mIcon = context.getResources().getDrawable(
+                    R.drawable.ic_menu_add_field_holo_light);
+            this.mLabel = context.getString(R.string.add_connection_button);
+            this.mOnClickListener = onClickListener;
+            this.isEnabled = true;
         }
 
         @Override
@@ -1217,7 +1234,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         public String mimetype;
 
         public Context context = null;
-        public String resPackageName = null;
         public boolean isPrimary = false;
         public int secondaryActionIcon = -1;
         public int secondaryActionDescription = -1;
@@ -1228,8 +1244,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
 
         public int presence = -1;
         public int chatCapability = 0;
-
-        public CharSequence footerLine = null;
 
         private boolean mIsInSubSection = false;
 
@@ -1255,7 +1269,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
             entry.kind = (kind.titleRes == -1 || kind.titleRes == 0) ? ""
                     : context.getString(kind.titleRes);
             entry.data = buildDataString(kind, values, context);
-            entry.resPackageName = kind.resPackageName;
 
             if (kind.typeColumn != null && values.containsKey(kind.typeColumn)) {
                 entry.type = values.getAsInteger(kind.typeColumn);
@@ -1281,21 +1294,8 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
             return entry;
         }
 
-        /**
-         * Apply given {@link DataStatus} values over this {@link DetailViewEntry}
-         *
-         * @param fillData When true, the given status replaces {@link #data}
-         *            and {@link #footerLine}. Otherwise only {@link #presence}
-         *            is updated.
-         */
-        public DetailViewEntry applyStatus(DataStatus status, boolean fillData) {
-            presence = status.getPresence();
-            if (fillData && status.isValid()) {
-                this.data = status.getStatus().toString();
-                this.footerLine = status.getTimestampLabel(context);
-            }
-
-            return this;
+        public void setPresence(int presence) {
+            this.presence = presence;
         }
 
         public void setIsInSubSection(boolean isInSubSection) {
@@ -1375,15 +1375,32 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         public final TextView displayNameView;
         public final TextView companyView;
         public final ImageView photoView;
-        public final CheckBox starredView;
+        public final View photoOverlayView;
+        public final ImageView starredView;
         public final int layoutResourceId;
 
         public HeaderViewCache(View view, int layoutResourceInflated) {
             displayNameView = (TextView) view.findViewById(R.id.name);
             companyView = (TextView) view.findViewById(R.id.company);
             photoView = (ImageView) view.findViewById(R.id.photo);
-            starredView = (CheckBox) view.findViewById(R.id.star);
+            photoOverlayView = view.findViewById(R.id.photo_touch_intercept_overlay);
+            starredView = (ImageView) view.findViewById(R.id.star);
             layoutResourceId = layoutResourceInflated;
+        }
+
+        public void enablePhotoOverlay(OnClickListener listener) {
+            if (photoOverlayView != null) {
+                photoOverlayView.setOnClickListener(listener);
+                photoOverlayView.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    private static class KindTitleViewCache {
+        public final TextView titleView;
+
+        public KindTitleViewCache(View view) {
+            titleView = (TextView)view.findViewById(R.id.title);
         }
     }
 
@@ -1401,13 +1418,27 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     }
 
     /**
+     * Cache of the children views for a view that displays a {@link AddConnectionViewEntry}
+     */
+    private static class AddConnectionViewCache {
+        public final TextView name;
+        public final ImageView icon;
+        public final View primaryActionView;
+
+        public AddConnectionViewCache(View view) {
+            name = (TextView) view.findViewById(R.id.add_connection_label);
+            icon = (ImageView) view.findViewById(R.id.add_connection_icon);
+            primaryActionView = view.findViewById(R.id.primary_action_view);
+        }
+    }
+
+    /**
      * Cache of the children views of a contact detail entry represented by a
      * {@link DetailViewEntry}
      */
     private static class DetailViewCache {
         public final TextView type;
         public final TextView data;
-        public final TextView footer;
         public final ImageView presenceIcon;
         public final ImageView secondaryActionButton;
         public final View actionsViewContainer;
@@ -1421,7 +1452,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                 OnClickListener secondaryActionClickListener) {
             type = (TextView) view.findViewById(R.id.type);
             data = (TextView) view.findViewById(R.id.data);
-            footer = (TextView) view.findViewById(R.id.footer);
             primaryIndicator = view.findViewById(R.id.primary_indicator);
             presenceIcon = (ImageView) view.findViewById(R.id.presence_icon);
 
@@ -1446,8 +1476,9 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         public static final int VIEW_TYPE_HEADER_ENTRY = 1;
         public static final int VIEW_TYPE_KIND_TITLE_ENTRY = 2;
         public static final int VIEW_TYPE_NETWORK_TITLE_ENTRY = 3;
-        public static final int VIEW_TYPE_SEPARATOR_ENTRY = 4;
-        private static final int VIEW_TYPE_COUNT = 5;
+        public static final int VIEW_TYPE_ADD_CONNECTION_ENTRY = 4;
+        public static final int VIEW_TYPE_SEPARATOR_ENTRY = 5;
+        private static final int VIEW_TYPE_COUNT = 6;
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
@@ -1462,6 +1493,8 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                     return getDetailEntryView(position, convertView, parent);
                 case VIEW_TYPE_NETWORK_TITLE_ENTRY:
                     return getNetworkTitleEntryView(position, convertView, parent);
+                case VIEW_TYPE_ADD_CONNECTION_ENTRY:
+                    return getAddConnectionEntryView(position, convertView, parent);
                 default:
                     throw new IllegalStateException("Invalid view type ID " +
                             getItemViewType(position));
@@ -1498,13 +1531,21 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
 
             // Set the photo if it should be displayed
             if (viewCache.photoView != null) {
-                ContactDetailDisplayUtils.setPhoto(mContext, mContactData, viewCache.photoView);
+                final boolean expandOnClick = mContactData.getPhotoUri() != null;
+                final OnClickListener listener = mPhotoSetter.setupContactPhotoForClick(
+                        mContext, mContactData, viewCache.photoView, expandOnClick);
+
+                if (expandOnClick || mContactData.isWritableContact(mContext)) {
+                    viewCache.enablePhotoOverlay(listener);
+                }
             }
 
             // Set the starred state if it should be displayed
-            final CheckBox favoritesStar = viewCache.starredView;
+            final ImageView favoritesStar = viewCache.starredView;
             if (favoritesStar != null) {
-                ContactDetailDisplayUtils.setStarred(mContactData, favoritesStar);
+                ContactDetailDisplayUtils.configureStarredImageView(favoritesStar,
+                        mContactData.isDirectoryEntry(), mContactData.isUserProfile(),
+                        mContactData.getStarred());
                 final Uri lookupUri = mContactData.getLookupUri();
                 favoritesStar.setOnClickListener(new OnClickListener() {
                     @Override
@@ -1512,8 +1553,22 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                         // Toggle "starred" state
                         // Make sure there is a contact
                         if (lookupUri != null) {
+                            // Read the current starred value from the UI instead of using the last
+                            // loaded state. This allows rapid tapping without writing the same
+                            // value several times
+                            final Object tag = favoritesStar.getTag();
+                            final boolean isStarred = tag == null
+                                    ? false : (Boolean) favoritesStar.getTag();
+
+                            // To improve responsiveness, swap out the picture (and tag) in the UI
+                            // already
+                            ContactDetailDisplayUtils.configureStarredImageView(favoritesStar,
+                                    mContactData.isDirectoryEntry(), mContactData.isUserProfile(),
+                                    !isStarred);
+
+                            // Now perform the real save
                             Intent intent = ContactSaveService.createSetStarredIntent(
-                                    getContext(), lookupUri, favoritesStar.isChecked());
+                                    getContext(), lookupUri, !isStarred);
                             getContext().startService(intent);
                         }
                     }
@@ -1537,11 +1592,19 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
 
         private View getKindTitleEntryView(int position, View convertView, ViewGroup parent) {
             final KindTitleViewEntry entry = (KindTitleViewEntry) getItem(position);
+            final View result;
+            final KindTitleViewCache viewCache;
 
-            final View result = (convertView != null) ? convertView :
-                    mInflater.inflate(R.layout.list_separator, parent, false);
-            final TextView titleTextView = (TextView) result.findViewById(R.id.title);
-            titleTextView.setText(entry.getTitle());
+            if (convertView != null) {
+                result = convertView;
+                viewCache = (KindTitleViewCache)result.getTag();
+            } else {
+                result = mInflater.inflate(R.layout.list_separator, parent, false);
+                viewCache = new KindTitleViewCache(result);
+                result.setTag(viewCache);
+            }
+
+            viewCache.titleView.setText(entry.getTitle());
 
             return result;
         }
@@ -1559,12 +1622,31 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                         parent, false);
                 viewCache = new NetworkTitleViewCache(result);
                 result.setTag(viewCache);
-                result.findViewById(R.id.primary_action_view).setOnClickListener(
-                        entry.mOnClickListener);
             }
 
             viewCache.name.setText(entry.getLabel());
             viewCache.icon.setImageDrawable(entry.getIcon());
+
+            return result;
+        }
+
+        private View getAddConnectionEntryView(int position, View convertView, ViewGroup parent) {
+            final AddConnectionViewEntry entry = (AddConnectionViewEntry) getItem(position);
+            final View result;
+            final AddConnectionViewCache viewCache;
+
+            if (convertView != null) {
+                result = convertView;
+                viewCache = (AddConnectionViewCache) result.getTag();
+            } else {
+                result = mInflater.inflate(R.layout.contact_detail_add_connection_entry_view,
+                        parent, false);
+                viewCache = new AddConnectionViewCache(result);
+                result.setTag(viewCache);
+            }
+            viewCache.name.setText(entry.getLabel());
+            viewCache.icon.setImageDrawable(entry.getIcon());
+            viewCache.primaryActionView.setOnClickListener(entry.mOnClickListener);
 
             return result;
         }
@@ -1605,14 +1687,6 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
 
             views.data.setText(entry.data);
             setMaxLines(views.data, entry.maxLines);
-
-            // Set the footer
-            if (!TextUtils.isEmpty(entry.footerLine)) {
-                views.footer.setText(entry.footerLine);
-                views.footer.setVisibility(View.VISIBLE);
-            } else {
-                views.footer.setVisibility(View.GONE);
-            }
 
             // Set the default contact method
             views.primaryIndicator.setVisibility(entry.isPrimary ? View.VISIBLE : View.GONE);
@@ -1865,17 +1939,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
         // Checking for empty string
         if (TextUtils.isEmpty(textToCopy)) return;
 
-        // Adding item to clipboard
-        ClipboardManager clipboardManager = (ClipboardManager) getActivity().getSystemService(
-                Context.CLIPBOARD_SERVICE);
-        String[] mimeTypes = new String[]{detailViewEntry.mimetype};
-        ClipData.Item clipDataItem = new ClipData.Item(textToCopy);
-        ClipData cd = new ClipData(detailViewEntry.typeString, mimeTypes, clipDataItem);
-        clipboardManager.setPrimaryClip(cd);
-
-        // Display Confirmation Toast
-        String toastText = getString(R.string.toast_text_copied);
-        Toast.makeText(getActivity(), toastText, Toast.LENGTH_SHORT).show();
+        ClipboardUtils.copyText(getActivity(), detailViewEntry.typeString, textToCopy, true);
     }
 
     @Override
@@ -1903,9 +1967,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
                     }
                 } else if (mPrimaryPhoneUri != null) {
                     // There isn't anything selected, call the default number
-                    final Intent intent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
-                            mPrimaryPhoneUri);
-                    mContext.startActivity(intent);
+                    mContext.startActivity(ContactsUtils.getCallIntent(mPrimaryPhoneUri));
                     return true;
                 }
                 return false;
@@ -1988,8 +2050,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
             if (defaultGroupId == -1) return;
 
             // add the group membership to the current state
-            final EntityDeltaList contactDeltaList = EntityDeltaList.fromIterator(
-                    mContactData.getEntities().iterator());
+            final EntityDeltaList contactDeltaList = mContactData.createEntityDeltaList();
             final EntityDelta rawContactEntityDelta = contactDeltaList.get(0);
 
             final AccountTypeManager accountTypes = AccountTypeManager.getInstance(mContext);
@@ -2007,7 +2068,7 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
             // should update the ui
             final Intent intent = ContactSaveService.createSaveContactIntent(getActivity(),
                     contactDeltaList, "", 0, false, getActivity().getClass(),
-                    Intent.ACTION_VIEW);
+                    Intent.ACTION_VIEW, null);
             getActivity().startService(intent);
         }
     }
@@ -2136,17 +2197,14 @@ public class ContactDetailFragment extends Fragment implements FragmentKeyListen
     private final static class InvitableAccountTypesAdapter extends BaseAdapter {
         private final Context mContext;
         private final LayoutInflater mInflater;
-        private final ContactLoader.Result mContactData;
         private final ArrayList<AccountType> mAccountTypes;
 
         public InvitableAccountTypesAdapter(Context context, ContactLoader.Result contactData) {
             mContext = context;
             mInflater = LayoutInflater.from(context);
-            mContactData = contactData;
             final List<AccountType> types = contactData.getInvitableAccountTypes();
             mAccountTypes = new ArrayList<AccountType>(types.size());
 
-            AccountTypeManager manager = AccountTypeManager.getInstance(context);
             for (int i = 0; i < types.size(); i++) {
                 mAccountTypes.add(types.get(i));
             }

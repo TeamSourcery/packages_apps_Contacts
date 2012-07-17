@@ -20,6 +20,8 @@ import com.android.contacts.list.ShortcutIntentBuilder.OnShortcutIntentCreatedLi
 import com.android.contacts.util.AccountFilterUtil;
 
 import android.content.Intent;
+import android.content.Loader;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -28,6 +30,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 /**
  * Fragment containing a phone number list for picking.
@@ -37,6 +40,8 @@ public class PhoneNumberPickerFragment extends ContactEntryListFragment<ContactE
     private static final String TAG = PhoneNumberPickerFragment.class.getSimpleName();
 
     private static final int REQUEST_CODE_ACCOUNT_FILTER = 1;
+
+    private static final String KEY_SHORTCUT_ACTION = "shortcutAction";
 
     private OnPhoneNumberPickerActionListener mListener;
     private String mShortcutAction;
@@ -55,6 +60,8 @@ public class PhoneNumberPickerFragment extends ContactEntryListFragment<ContactE
     /** true if the loader has started at least once. */
     private boolean mLoaderStarted;
 
+    private boolean mUseCallableUri;
+
     private ContactListItemView.PhotoPosition mPhotoPosition =
             ContactListItemView.DEFAULT_PHOTO_POSITION;
 
@@ -62,7 +69,9 @@ public class PhoneNumberPickerFragment extends ContactEntryListFragment<ContactE
         @Override
         public void onClick(View view) {
             AccountFilterUtil.startAccountFilterActivityForResult(
-                    PhoneNumberPickerFragment.this, REQUEST_CODE_ACCOUNT_FILTER);
+                    PhoneNumberPickerFragment.this,
+                    REQUEST_CODE_ACCOUNT_FILTER,
+                    mFilter);
         }
     }
     private OnClickListener mFilterHeaderClickListener = new FilterHeaderClickListener();
@@ -107,8 +116,10 @@ public class PhoneNumberPickerFragment extends ContactEntryListFragment<ContactE
         if (mAccountFilterHeader == null || filter == null) {
             return;
         }
-        final boolean shouldShowHeader = AccountFilterUtil.updateAccountFilterTitleForPhone(
-                mAccountFilterHeader, filter, false, false);
+        final boolean shouldShowHeader =
+                !isSearchMode() &&
+                AccountFilterUtil.updateAccountFilterTitleForPhone(
+                        mAccountFilterHeader, filter, false);
         if (shouldShowHeader) {
             mPaddingView.setVisibility(View.GONE);
             mAccountFilterHeader.setVisibility(View.VISIBLE);
@@ -127,12 +138,14 @@ public class PhoneNumberPickerFragment extends ContactEntryListFragment<ContactE
         }
 
         mFilter = savedState.getParcelable(KEY_FILTER);
+        mShortcutAction = savedState.getString(KEY_SHORTCUT_ACTION);
     }
 
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putParcelable(KEY_FILTER, mFilter);
+        outState.putString(KEY_SHORTCUT_ACTION, mShortcutAction);
     }
 
     @Override
@@ -181,10 +194,27 @@ public class PhoneNumberPickerFragment extends ContactEntryListFragment<ContactE
     }
 
     @Override
+    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+        super.onLoadFinished(loader, data);
+
+        // disable scroll bar if there is no data
+        setVisibleScrollbarEnabled(data.getCount() > 0);
+    }
+
+    public void setUseCallableUri(boolean useCallableUri) {
+        mUseCallableUri = useCallableUri;
+    }
+
+    public boolean usesCallableUri() {
+        return mUseCallableUri;
+    }
+
+    @Override
     protected ContactEntryListAdapter createListAdapter() {
         if (!isLegacyCompatibilityMode()) {
             PhoneNumberListAdapter adapter = new PhoneNumberListAdapter(getActivity());
             adapter.setDisplayPhotos(true);
+            adapter.setUseCallableUri(mUseCallableUri);
             return adapter;
         } else {
             LegacyPhoneNumberListAdapter adapter = new LegacyPhoneNumberListAdapter(getActivity());

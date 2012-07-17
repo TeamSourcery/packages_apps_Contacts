@@ -19,17 +19,20 @@
         android:id="@+id/menu_edit"
         android:icon="@drawable/ic_menu_compose_holo_dark"
         android:title="@string/menu_editContact"
-        android:alphabeticShortcut="e" />
+        android:alphabeticShortcut="e"
+        android:showAsAction="always"/>
 
     <item
         android:id="@+id/menu_share"
-        android:icon="@drawable/ic_menu_share_holo_light"
         android:title="@string/menu_share"
         android:alphabeticShortcut="s" />
 
     <item
         android:id="@+id/menu_delete"
-        android:icon="@drawable/ic_menu_trash_holo_light"
         android:title="@string/menu_deleteContact" />
+
+    <item
+        android:id="@+id/menu_create_contact_shortcut"
+        android:title="@string/menu_create_contact_shortcut" />
 
 </menu>

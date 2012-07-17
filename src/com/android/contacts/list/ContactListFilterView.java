@@ -17,13 +17,18 @@
 package com.android.contacts.list;
 
 import com.android.contacts.R;
+import com.android.contacts.editor.ContactEditorFragment;
+import com.android.contacts.model.AccountType;
+import com.android.contacts.model.AccountTypeManager;
 import com.android.contacts.util.ThemeUtils;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
 import android.widget.TextView;
 
 /**
@@ -31,12 +36,14 @@ import android.widget.TextView;
  */
 public class ContactListFilterView extends LinearLayout {
 
+    private static final String TAG = ContactListFilterView.class.getSimpleName();
+
     private ImageView mIcon;
-    private TextView mLabel;
-    private View mIndent;
+    private TextView mAccountType;
+    private TextView mAccountUserName;
+    private RadioButton mRadioButton;
     private ContactListFilter mFilter;
     private boolean mSingleAccount;
-    private int mActivatedBackground;
 
     public ContactListFilterView(Context context) {
         super(context);
@@ -58,78 +65,80 @@ public class ContactListFilterView extends LinearLayout {
         this.mSingleAccount = flag;
     }
 
-    public void bindView(boolean dropdown) {
-        if (dropdown) {
-            if (mActivatedBackground == 0) {
-                mActivatedBackground = ThemeUtils.getActivatedBackground(getContext().getTheme());
-            }
-            setBackgroundResource(mActivatedBackground);
+    @Override
+    public void setActivated(boolean activated) {
+        super.setActivated(activated);
+        if (mRadioButton != null) {
+            mRadioButton.setChecked(activated);
+        } else {
+            // We're guarding against null-pointer exceptions,
+            // but otherwise this code is not expected to work
+            // properly if the button hasn't been initialized.
+            Log.wtf(TAG, "radio-button cannot be activated because it is null");
         }
+    }
 
-        if (mLabel == null) {
+    public void bindView(AccountTypeManager accountTypes) {
+        if (mAccountType == null) {
             mIcon = (ImageView) findViewById(R.id.icon);
-            mLabel = (TextView) findViewById(R.id.label);
-            mIndent = findViewById(R.id.indent);
+            mAccountType = (TextView) findViewById(R.id.accountType);
+            mAccountUserName = (TextView) findViewById(R.id.accountUserName);
+            mRadioButton = (RadioButton) findViewById(R.id.radioButton);
+            mRadioButton.setChecked(isActivated());
         }
 
         if (mFilter == null) {
-            mLabel.setText(R.string.contactsList);
+            mAccountType.setText(R.string.contactsList);
             return;
         }
 
+        mAccountUserName.setVisibility(View.GONE);
         switch (mFilter.filterType) {
             case ContactListFilter.FILTER_TYPE_ALL_ACCOUNTS: {
-                bindView(R.drawable.ic_menu_contacts_holo_light, R.string.list_filter_all_accounts,
-                        dropdown);
+                bindView(0, R.string.list_filter_all_accounts);
                 break;
             }
             case ContactListFilter.FILTER_TYPE_STARRED: {
-                bindView(R.drawable.ic_menu_star_holo_light, R.string.list_filter_all_starred,
-                        dropdown);
+                bindView(R.drawable.ic_menu_star_holo_light, R.string.list_filter_all_starred);
                 break;
             }
             case ContactListFilter.FILTER_TYPE_CUSTOM: {
-                bindView(R.drawable.ic_menu_settings_holo_light,
-                        dropdown ? R.string.list_filter_customize : R.string.list_filter_custom,
-                        dropdown);
+                bindView(R.drawable.ic_menu_settings_holo_light, R.string.list_filter_customize);
                 break;
             }
             case ContactListFilter.FILTER_TYPE_WITH_PHONE_NUMBERS_ONLY: {
-                bindView(0, R.string.list_filter_phones, dropdown);
+                bindView(0, R.string.list_filter_phones);
                 break;
             }
             case ContactListFilter.FILTER_TYPE_SINGLE_CONTACT: {
-                bindView(0, R.string.list_filter_single, dropdown);
+                bindView(0, R.string.list_filter_single);
                 break;
             }
             case ContactListFilter.FILTER_TYPE_ACCOUNT: {
+                mAccountUserName.setVisibility(View.VISIBLE);
                 mIcon.setVisibility(View.VISIBLE);
                 if (mFilter.icon != null) {
                     mIcon.setImageDrawable(mFilter.icon);
                 } else {
                     mIcon.setImageResource(R.drawable.unknown_source);
                 }
-                mLabel.setText(mFilter.accountName);
-                if (dropdown) {
-                    mIndent.setVisibility(View.GONE);
-                }
+                final AccountType accountType =
+                        accountTypes.getAccountType(mFilter.accountType, mFilter.dataSet);
+                mAccountUserName.setText(mFilter.accountName);
+                mAccountType.setText(accountType.getDisplayLabel(getContext()));
                 break;
             }
         }
     }
 
-    private void bindView(int iconResource, int textResource, boolean dropdown) {
+    private void bindView(int iconResource, int textResource) {
         if (iconResource != 0) {
             mIcon.setVisibility(View.VISIBLE);
             mIcon.setImageResource(iconResource);
         } else {
-            mIcon.setVisibility(dropdown ? View.INVISIBLE : View.GONE);
+            mIcon.setVisibility(View.GONE);
         }
 
-        mLabel.setText(textResource);
-
-        if (mIndent != null) {
-            mIndent.setVisibility(View.GONE);
-        }
+        mAccountType.setText(textResource);
     }
 }

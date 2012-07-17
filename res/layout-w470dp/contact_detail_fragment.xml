@@ -19,7 +19,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-     <!-- "QuickFix"- button (Copy to local contact, add to group) -->
+    <!-- "QuickFix"- button (Copy to local contact, add to group) -->
     <Button
         android:id="@+id/contact_quick_fix"
         android:layout_width="wrap_content"
@@ -35,14 +35,16 @@
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_above="@id/contact_quick_fix"
-        android:layout_height="match_parent" >
+        android:layout_height="match_parent"
+        android:baselineAligned="false"
+        android:background="@android:color/white">
 
-        <ImageView android:id="@+id/photo"
-            android:scaleType="centerCrop"
-            android:layout_width="128dip"
-            android:layout_height="128dip"
+        <include android:id="@+id/static_photo_container"
+            layout="@layout/photo_selector_view"
+            android:layout_width="@dimen/detail_contact_photo_size"
+            android:layout_height="@dimen/detail_contact_photo_size"
             android:layout_marginLeft="@dimen/detail_contact_photo_margin"
-            android:layout_marginTop="@dimen/detail_contact_photo_margin"/>
+            android:layout_marginTop="@dimen/detail_contact_photo_margin" />
 
         <ListView android:id="@android:id/list"
             android:layout_width="0dip"
@@ -70,20 +72,5 @@
             android:lineSpacingMultiplier="0.92"/>
     </ScrollView>
 
-    <View
-        android:id="@+id/alpha_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentTop="true"/>
-
-    <View
-        android:id="@+id/touch_intercept_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentTop="true"
-        android:background="?android:attr/selectableItemBackground"
-        android:visibility="gone"/>
 </RelativeLayout>
 

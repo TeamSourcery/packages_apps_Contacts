@@ -22,8 +22,11 @@ import com.android.contacts.calllog.CallTypeHelper;
 import com.android.contacts.calllog.ContactInfo;
 import com.android.contacts.calllog.ContactInfoHelper;
 import com.android.contacts.calllog.PhoneNumberHelper;
+import com.android.contacts.format.FormatUtils;
 import com.android.contacts.util.AsyncTaskExecutor;
 import com.android.contacts.util.AsyncTaskExecutors;
+import com.android.contacts.util.ClipboardUtils;
+import com.android.contacts.util.Constants;
 import com.android.contacts.voicemail.VoicemailPlaybackFragment;
 import com.android.contacts.voicemail.VoicemailStatusHelper;
 import com.android.contacts.voicemail.VoicemailStatusHelper.StatusMessage;
@@ -38,6 +41,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.database.Cursor;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -51,6 +55,7 @@ import android.telephony.PhoneNumberUtils;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.ActionMode;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -92,6 +97,8 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
     public static final String EXTRA_VOICEMAIL_URI = "EXTRA_VOICEMAIL_URI";
     /** If we should immediately start playback of the voicemail, this extra will be set to true. */
     public static final String EXTRA_VOICEMAIL_START_PLAYBACK = "EXTRA_VOICEMAIL_START_PLAYBACK";
+    /** If the activity was triggered from a notification. */
+    public static final String EXTRA_FROM_NOTIFICATION = "EXTRA_FROM_NOTIFICATION";
 
     private CallTypeHelper mCallTypeHelper;
     private PhoneNumberHelper mPhoneNumberHelper;
@@ -129,6 +136,15 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
 
     private ProximitySensorManager mProximitySensorManager;
     private final ProximitySensorListener mProximitySensorListener = new ProximitySensorListener();
+
+    /**
+     * The action mode used when the phone number is selected.  This will be non-null only when the
+     * phone number is selected.
+     */
+    private ActionMode mPhoneNumberActionMode;
+
+    private CharSequence mPhoneNumberLabelToCopy;
+    private CharSequence mPhoneNumberToCopy;
 
     /** Listener to changes in the proximity sensor state. */
     private class ProximitySensorListener implements ProximitySensorManager.Listener {
@@ -200,6 +216,9 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
     private final View.OnClickListener mPrimaryActionListener = new View.OnClickListener() {
         @Override
         public void onClick(View view) {
+            if (finishPhoneNumerSelectedActionModeIfShown()) {
+                return;
+            }
             startActivity(((ViewEntry) view.getTag()).primaryIntent);
         }
     };
@@ -207,7 +226,22 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
     private final View.OnClickListener mSecondaryActionListener = new View.OnClickListener() {
         @Override
         public void onClick(View view) {
+            if (finishPhoneNumerSelectedActionModeIfShown()) {
+                return;
+            }
             startActivity(((ViewEntry) view.getTag()).secondaryIntent);
+        }
+    };
+
+    private final View.OnLongClickListener mPrimaryLongClickListener =
+            new View.OnLongClickListener() {
+        @Override
+        public boolean onLongClick(View v) {
+            if (finishPhoneNumerSelectedActionModeIfShown()) {
+                return true;
+            }
+            startPhoneNumberSelectedActionMode(v);
+            return true;
         }
     };
 
@@ -241,6 +275,9 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
         mContactInfoHelper = new ContactInfoHelper(this, ContactsUtils.getCurrentCountryIso(this));
         configureActionBar();
         optionallyHandleVoicemail();
+        if (getIntent().getBooleanExtra(EXTRA_FROM_NOTIFICATION, false)) {
+            closeSystemDialogs();
+        }
     }
 
     @Override
@@ -331,9 +368,8 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
                 TelephonyManager tm = (TelephonyManager)
                         getSystemService(Context.TELEPHONY_SERVICE);
                 if (tm.getCallState() == TelephonyManager.CALL_STATE_IDLE) {
-                    Intent callIntent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
-                            Uri.fromParts("tel", mNumber, null));
-                    startActivity(callIntent);
+                    startActivity(ContactsUtils.getCallIntent(
+                            Uri.fromParts(Constants.SCHEME_TEL, mNumber, null)));
                     return true;
                 }
             }
@@ -388,7 +424,6 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
                 mPhoneCallDetailsHelper.setCallDetailsHeader(mHeaderTextView, firstDetails);
 
                 // Cache the details about the phone number.
-                final Uri numberCallUri = mPhoneNumberHelper.getCallUri(mNumber);
                 final boolean canPlaceCallsTo = mPhoneNumberHelper.canPlaceCallsTo(mNumber);
                 final boolean isVoicemailNumber = mPhoneNumberHelper.isVoicemailNumber(mNumber);
                 final boolean isSipNumber = mPhoneNumberHelper.isSipNumber(mNumber);
@@ -408,6 +443,10 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
 
                 if (contactUri != null) {
                     mainActionIntent = new Intent(Intent.ACTION_VIEW, contactUri);
+                    // This will launch People's detail contact screen, so we probably want to
+                    // treat it as a separate People task.
+                    mainActionIntent.setFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                     mainActionIcon = R.drawable.ic_contacts_holo_dark;
                     mainActionDescription =
                             getString(R.string.description_view_contact, nameOrNumber);
@@ -469,9 +508,10 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
                                     firstDetails.number, firstDetails.formattedNumber);
 
                     ViewEntry entry = new ViewEntry(
-                            getString(R.string.menu_callNumber, displayNumber),
-                            new Intent(Intent.ACTION_CALL_PRIVILEGED, numberCallUri),
-                            getString(R.string.description_call, nameOrNumber));
+                            getString(R.string.menu_callNumber,
+                                    FormatUtils.forceLeftToRight(displayNumber)),
+                                    ContactsUtils.getCallIntent(mNumber),
+                                    getString(R.string.description_call, nameOrNumber));
 
                     // Only show a label if the number is shown and it is not a SIP address.
                     if (!TextUtils.isEmpty(firstDetails.name)
@@ -492,8 +532,12 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
                     }
 
                     configureCallButton(entry);
+                    mPhoneNumberToCopy = displayNumber;
+                    mPhoneNumberLabelToCopy = entry.label;
                 } else {
                     disableCallButton();
+                    mPhoneNumberToCopy = null;
+                    mPhoneNumberLabelToCopy = null;
                 }
 
                 mHasEditNumberBeforeCallOption =
@@ -602,7 +646,8 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
 
     /** Load the contact photos and places them in the corresponding views. */
     private void loadContactPhotos(Uri photoUri) {
-        mContactPhotoManager.loadPhoto(mContactBackgroundView, photoUri, true, true);
+        mContactPhotoManager.loadPhoto(mContactBackgroundView, photoUri,
+                mContactBackgroundView.getWidth(), true);
     }
 
     static final class ViewEntry {
@@ -650,6 +695,7 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
         mainAction.setOnClickListener(mPrimaryActionListener);
         mainAction.setTag(entry);
         mainAction.setContentDescription(entry.primaryDescription);
+        mainAction.setOnLongClickListener(mPrimaryLongClickListener);
 
         if (entry.secondaryIntent != null) {
             icon.setOnClickListener(mSecondaryActionListener);
@@ -771,7 +817,7 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
     }
 
     public void onMenuEditNumberBeforeCall(MenuItem menuItem) {
-        startActivity(new Intent(Intent.ACTION_DIAL, mPhoneNumberHelper.getCallUri(mNumber)));
+        startActivity(new Intent(Intent.ACTION_DIAL, ContactsUtils.getCallUri(mNumber)));
     }
 
     public void onMenuTrashVoicemail(MenuItem menuItem) {
@@ -822,5 +868,69 @@ public class CallDetailActivity extends Activity implements ProximitySensorAware
     @Override
     public void disableProximitySensor(boolean waitForFarState) {
         mProximitySensorManager.disable(waitForFarState);
+    }
+
+    /**
+     * If the phone number is selected, unselect it and return {@code true}.
+     * Otherwise, just {@code false}.
+     */
+    private boolean finishPhoneNumerSelectedActionModeIfShown() {
+        if (mPhoneNumberActionMode == null) return false;
+        mPhoneNumberActionMode.finish();
+        return true;
+    }
+
+    private void startPhoneNumberSelectedActionMode(View targetView) {
+        mPhoneNumberActionMode = startActionMode(new PhoneNumberActionModeCallback(targetView));
+    }
+
+    private void closeSystemDialogs() {
+        sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+    }
+
+    private class PhoneNumberActionModeCallback implements ActionMode.Callback {
+        private final View mTargetView;
+        private final Drawable mOriginalViewBackground;
+
+        public PhoneNumberActionModeCallback(View targetView) {
+            mTargetView = targetView;
+
+            // Highlight the phone number view.  Remember the old background, and put a new one.
+            mOriginalViewBackground = mTargetView.getBackground();
+            mTargetView.setBackgroundColor(getResources().getColor(R.color.item_selected));
+        }
+
+        @Override
+        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+            if (TextUtils.isEmpty(mPhoneNumberToCopy)) return false;
+
+            getMenuInflater().inflate(R.menu.call_details_cab, menu);
+            return true;
+        }
+
+        @Override
+        public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+            return true;
+        }
+
+        @Override
+        public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+            switch (item.getItemId()) {
+                case R.id.copy_phone_number:
+                    ClipboardUtils.copyText(CallDetailActivity.this, mPhoneNumberLabelToCopy,
+                            mPhoneNumberToCopy, true);
+                    mode.finish(); // Close the CAB
+                    return true;
+            }
+            return false;
+        }
+
+        @Override
+        public void onDestroyActionMode(ActionMode mode) {
+            mPhoneNumberActionMode = null;
+
+            // Restore the view background.
+            mTargetView.setBackground(mOriginalViewBackground);
+        }
     }
 }

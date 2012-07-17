@@ -23,13 +23,11 @@ import com.android.contacts.ContactsUtils;
 import com.android.contacts.GroupMemberLoader;
 import com.android.contacts.GroupMemberLoader.GroupDetailQuery;
 import com.android.contacts.R;
-import com.android.contacts.list.ContactTileAdapter.DisplayType;
 
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.res.Resources;
 import android.database.Cursor;
-import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
@@ -50,11 +48,12 @@ public class ContactTileAdapter extends BaseAdapter {
     private static final String TAG = ContactTileAdapter.class.getSimpleName();
 
     private DisplayType mDisplayType;
-    private Listener mListener;
+    private ContactTileView.Listener mListener;
     private Context mContext;
     private Resources mResources;
     private Cursor mContactCursor = null;
     private ContactPhotoManager mPhotoManager;
+    private int mNumFrequents;
 
     /**
      * Index of the first NON starred contact in the {@link Cursor}
@@ -114,13 +113,14 @@ public class ContactTileAdapter extends BaseAdapter {
         GROUP_MEMBERS
     }
 
-    public ContactTileAdapter(Context context, Listener listener, int numCols,
+    public ContactTileAdapter(Context context, ContactTileView.Listener listener, int numCols,
             DisplayType displayType) {
         mListener = listener;
         mContext = context;
         mResources = context.getResources();
         mColumnCount = (displayType == DisplayType.FREQUENT_ONLY ? 1 : numCols);
         mDisplayType = displayType;
+        mNumFrequents = 0;
 
         // Converting padding in dips to padding in pixels
         mPaddingInPixels = mContext.getResources()
@@ -186,6 +186,25 @@ public class ContactTileAdapter extends BaseAdapter {
     public void setContactCursor(Cursor cursor) {
         mContactCursor = cursor;
         mDividerPosition = getDividerPosition(cursor);
+
+        // count the number of frequents
+        switch (mDisplayType) {
+            case STARRED_ONLY:
+            case GROUP_MEMBERS:
+                mNumFrequents = 0;
+                break;
+            case STREQUENT:
+            case STREQUENT_PHONE_ONLY:
+                mNumFrequents = mContactCursor.getCount() - mDividerPosition;
+                break;
+            case FREQUENT_ONLY:
+                mNumFrequents = mContactCursor.getCount();
+                break;
+            default:
+                throw new IllegalArgumentException("Unrecognized DisplayType " + mDisplayType);
+        }
+
+        // cause a refresh of any views that rely on this data
         notifyDataSetChanged();
     }
 
@@ -276,6 +295,13 @@ public class ContactTileAdapter extends BaseAdapter {
         return contact;
     }
 
+    /**
+     * Returns the number of frequents that will be displayed in the list.
+     */
+    public int getNumFrequents() {
+        return mNumFrequents;
+    }
+
     @Override
     public int getCount() {
         if (mContactCursor == null || mContactCursor.isClosed()) {
@@ -291,11 +317,9 @@ public class ContactTileAdapter extends BaseAdapter {
                 // Takes numbers of rows the Starred Contacts Occupy
                 int starredRowCount = getRowCount(mDividerPosition);
 
-                // Calculates the number of frequent contacts
-                int frequentRowCount = mContactCursor.getCount() - mDividerPosition ;
-
-                // If there are any frequent contacts add one for the divider
-                frequentRowCount += frequentRowCount == 0 ? 0 : 1;
+                // Compute the frequent row count which is 1 plus the number of frequents
+                // (to account for the divider) or 0 if there are no frequents.
+                int frequentRowCount = mNumFrequents == 0 ? 0 : mNumFrequents + 1;
 
                 // Return the number of starred plus frequent rows
                 return starredRowCount + frequentRowCount;
@@ -313,6 +337,10 @@ public class ContactTileAdapter extends BaseAdapter {
      */
     private int getRowCount(int entryCount) {
         return entryCount == 0 ? 0 : ((entryCount - 1) / mColumnCount) + 1;
+    }
+
+    public int getColumnCount() {
+        return mColumnCount;
     }
 
     /**
@@ -418,8 +446,8 @@ public class ContactTileAdapter extends BaseAdapter {
             case ViewTypes.FREQUENT:
                 return mDisplayType == DisplayType.STREQUENT_PHONE_ONLY ?
                         R.layout.contact_tile_frequent_phone : R.layout.contact_tile_frequent;
-            case ViewTypes.STARRED_WITH_SECONDARY_ACTION:
-                return R.layout.contact_tile_starred_secondary_target;
+            case ViewTypes.STARRED_PHONE:
+                return R.layout.contact_tile_phone_starred;
             default:
                 throw new IllegalArgumentException("Unrecognized viewType " + viewType);
         }
@@ -450,7 +478,7 @@ public class ContactTileAdapter extends BaseAdapter {
                 }
             case STREQUENT_PHONE_ONLY:
                 if (position < getRowCount(mDividerPosition)) {
-                    return ViewTypes.STARRED_WITH_SECONDARY_ACTION;
+                    return ViewTypes.STARRED_PHONE;
                  } else if (position == getRowCount(mDividerPosition)) {
                     return ViewTypes.DIVIDER;
                 } else {
@@ -473,16 +501,6 @@ public class ContactTileAdapter extends BaseAdapter {
     public int getFrequentHeaderPosition() {
         return getRowCount(mDividerPosition);
     }
-
-    private ContactTileView.Listener mContactTileListener = new ContactTileView.Listener() {
-        @Override
-        public void onClick(ContactTileView contactTileView) {
-            if (mListener != null) {
-                mListener.onContactSelected(contactTileView.getLookupUri(),
-                        ContactsUtils.getTargetRectFromView(mContext, contactTileView));
-            }
-        }
-    };
 
     /**
      * Acts as a row item composed of {@link ContactTileView}
@@ -531,7 +549,7 @@ public class ContactTileAdapter extends BaseAdapter {
                         0);
                 contactTile.setLayoutParams(params);
                 contactTile.setPhotoManager(mPhotoManager);
-                contactTile.setListener(mContactTileListener);
+                contactTile.setListener(mListener);
                 addView(contactTile);
             } else {
                 contactTile = (ContactTileView) getChildAt(childIndex);
@@ -539,7 +557,7 @@ public class ContactTileAdapter extends BaseAdapter {
             contactTile.loadFromContact(entry);
 
             switch (mItemViewType) {
-                case ViewTypes.STARRED_WITH_SECONDARY_ACTION:
+                case ViewTypes.STARRED_PHONE:
                 case ViewTypes.STARRED:
                     // Setting divider visibilities
                     contactTile.setPadding(0, 0,
@@ -558,9 +576,9 @@ public class ContactTileAdapter extends BaseAdapter {
         @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             switch (mItemViewType) {
-                case ViewTypes.STARRED_WITH_SECONDARY_ACTION:
+                case ViewTypes.STARRED_PHONE:
                 case ViewTypes.STARRED:
-                    onLayoutForTiles(left, top, right, bottom);
+                    onLayoutForTiles();
                     return;
                 default:
                     super.onLayout(changed, left, top, right, bottom);
@@ -568,9 +586,8 @@ public class ContactTileAdapter extends BaseAdapter {
             }
         }
 
-        private void onLayoutForTiles(int left, int top, int right, int bottom) {
+        private void onLayoutForTiles() {
             final int count = getChildCount();
-            final int width = right - left;
 
             // Just line up children horizontally.
             int childLeft = 0;
@@ -587,9 +604,9 @@ public class ContactTileAdapter extends BaseAdapter {
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             switch (mItemViewType) {
-                case ViewTypes.STARRED_WITH_SECONDARY_ACTION:
+                case ViewTypes.STARRED_PHONE:
                 case ViewTypes.STARRED:
-                    onMeasureForTiles(widthMeasureSpec, heightMeasureSpec);
+                    onMeasureForTiles(widthMeasureSpec);
                     return;
                 default:
                     super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -597,7 +614,7 @@ public class ContactTileAdapter extends BaseAdapter {
             }
         }
 
-        private void onMeasureForTiles(int widthMeasureSpec, int heightMeasureSpec) {
+        private void onMeasureForTiles(int widthMeasureSpec) {
             final int width = MeasureSpec.getSize(widthMeasureSpec);
 
             final int childCount = getChildCount();
@@ -665,10 +682,6 @@ public class ContactTileAdapter extends BaseAdapter {
         public static final int STARRED = 0;
         public static final int DIVIDER = 1;
         public static final int FREQUENT = 2;
-        public static final int STARRED_WITH_SECONDARY_ACTION = 3;
-    }
-
-    public interface Listener {
-        public void onContactSelected(Uri contactUri, Rect targetRect);
+        public static final int STARRED_PHONE = 3;
     }
 }

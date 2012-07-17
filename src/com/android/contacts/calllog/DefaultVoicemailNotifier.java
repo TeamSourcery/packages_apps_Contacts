@@ -90,8 +90,13 @@ public class DefaultVoicemailNotifier implements VoicemailNotifier {
         // TODO: Move this into a service, to avoid holding the receiver up.
         final NewCall[] newCalls = mNewCallsQuery.query();
 
+        if (newCalls == null) {
+            // Query failed, just return.
+            return;
+        }
+
         if (newCalls.length == 0) {
-            Log.e(TAG, "No voicemails to notify about: clear the notification.");
+            // No voicemails to notify about: clear the notification.
             clearNotification();
             return;
         }
@@ -147,14 +152,13 @@ public class DefaultVoicemailNotifier implements VoicemailNotifier {
         // TODO: Use the photo of contact if all calls are from the same person.
         final int icon = android.R.drawable.stat_notify_voicemail;
 
-        Notification notification = new Notification.Builder(mContext)
+        Notification.Builder notificationBuilder = new Notification.Builder(mContext)
                 .setSmallIcon(icon)
                 .setContentTitle(title)
                 .setContentText(callers)
                 .setDefaults(callToNotify != null ? Notification.DEFAULT_ALL : 0)
                 .setDeleteIntent(createMarkNewVoicemailsAsOldIntent())
-                .setAutoCancel(true)
-                .getNotification();
+                .setAutoCancel(true);
 
         // Determine the intent to fire when the notification is clicked on.
         final Intent contentIntent;
@@ -164,19 +168,29 @@ public class DefaultVoicemailNotifier implements VoicemailNotifier {
             contentIntent.setData(newCalls[0].callsUri);
             contentIntent.putExtra(CallDetailActivity.EXTRA_VOICEMAIL_URI,
                     newCalls[0].voicemailUri);
+            Intent playIntent = new Intent(mContext, CallDetailActivity.class);
+            playIntent.setData(newCalls[0].callsUri);
+            playIntent.putExtra(CallDetailActivity.EXTRA_VOICEMAIL_URI,
+                    newCalls[0].voicemailUri);
+            playIntent.putExtra(CallDetailActivity.EXTRA_VOICEMAIL_START_PLAYBACK, true);
+            playIntent.putExtra(CallDetailActivity.EXTRA_FROM_NOTIFICATION, true);
+            notificationBuilder.addAction(R.drawable.ic_play_holo_dark,
+                    resources.getString(R.string.notification_action_voicemail_play),
+                    PendingIntent.getActivity(mContext, 0, playIntent, 0));
         } else {
             // Open the call log.
             contentIntent = new Intent(Intent.ACTION_VIEW, Calls.CONTENT_URI);
         }
-        notification.contentIntent = PendingIntent.getActivity(mContext, 0, contentIntent, 0);
+        notificationBuilder.setContentIntent(
+                PendingIntent.getActivity(mContext, 0, contentIntent, 0));
 
         // The text to show in the ticker, describing the new event.
         if (callToNotify != null) {
-            notification.tickerText = resources.getString(
-                    R.string.notification_new_voicemail_ticker, names.get(callToNotify.number));
+            notificationBuilder.setTicker(resources.getString(
+                    R.string.notification_new_voicemail_ticker, names.get(callToNotify.number)));
         }
 
-        mNotificationManager.notify(NOTIFICATION_TAG, NOTIFICATION_ID, notification);
+        mNotificationManager.notify(NOTIFICATION_TAG, NOTIFICATION_ID, notificationBuilder.build());
     }
 
     /** Creates a pending intent that marks all new voicemails as old. */
@@ -243,6 +257,9 @@ public class DefaultVoicemailNotifier implements VoicemailNotifier {
             try {
                 cursor = mContentResolver.query(Calls.CONTENT_URI_WITH_VOICEMAIL, PROJECTION,
                         selection, selectionArgs, Calls.DEFAULT_SORT_ORDER);
+                if (cursor == null) {
+                    return null;
+                }
                 NewCall[] newCalls = new NewCall[cursor.getCount()];
                 while (cursor.moveToNext()) {
                     newCalls[cursor.getPosition()] = createNewCallsFromCursor(cursor);
@@ -301,7 +318,7 @@ public class DefaultVoicemailNotifier implements VoicemailNotifier {
                 cursor = mContentResolver.query(
                         Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number)),
                         PROJECTION, null, null, null);
-                if (!cursor.moveToFirst()) return null;
+                if (cursor == null || !cursor.moveToFirst()) return null;
                 return cursor.getString(DISPLAY_NAME_COLUMN_INDEX);
             } finally {
                 if (cursor != null) {

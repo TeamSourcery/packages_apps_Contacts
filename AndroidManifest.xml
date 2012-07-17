@@ -23,6 +23,8 @@
     <uses-permission android:name="android.permission.CALL_PRIVILEGED" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
     <uses-permission android:name="android.permission.MANAGE_ACCOUNTS" />
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -45,6 +47,7 @@
     <uses-permission android:name="com.android.voicemail.permission.ADD_VOICEMAIL" />
     <uses-permission android:name="com.android.voicemail.permission.READ_WRITE_ALL_VOICEMAIL" />
     <uses-permission android:name="android.permission.ALLOW_ANY_CODEC_FOR_PLAYBACK" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
     <!-- allow broadcasting secret code intents that reboot the phone -->
     <uses-permission android:name="android.permission.REBOOT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -118,7 +121,7 @@
             android:launchMode="singleTask"
             android:clearTaskOnLaunch="true"
             android:icon="@mipmap/ic_launcher_phone"
-            android:screenOrientation="nosensor"
+            android:screenOrientation="portrait"
             android:enabled="@*android:bool/config_voice_capable"
             android:taskAffinity="android.task.contacts.phone"
             android:windowSoftInputMode="stateAlwaysHidden|adjustNothing">
@@ -417,7 +420,7 @@
             android:launchMode="singleTop"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:taskAffinity="android.task.quickcontact"
+            android:taskAffinity=""
             android:windowSoftInputMode="stateUnchanged">
 
             <intent-filter>
@@ -427,6 +430,10 @@
                 <data android:mimeType="vnd.android.cursor.item/person" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".quickcontact.QuickContactBroadcastReceiver"
+            android:exported="false" />
 
         <activity-alias android:name="ContactShortcut"
             android:targetActivity=".activities.ContactSelectionActivity"
@@ -484,7 +491,8 @@
         <!-- Views the details of a single contact -->
         <activity android:name=".activities.ContactDetailActivity"
             android:label="@string/viewContactTitle"
-            android:theme="@style/DetailActivityTheme">
+            android:theme="@style/DetailActivityTheme"
+            android:parentActivityName=".activities.PeopleActivity">
 
             <intent-filter android:label="@string/viewContactDesription">
                 <action android:name="android.intent.action.VIEW" />
@@ -558,7 +566,18 @@
                 <data android:mimeType="image/*" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            
+        </activity>
+
+        <!--
+            Internal photo selection activity.  This activity handles all configuration changes by
+            itself.
+        -->
+        <activity android:name=".activities.PhotoSelectionActivity"
+            android:theme="@style/Theme.PhotoSelector"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="stateUnchanged"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize"
+            >
         </activity>
 
         <!-- Interstitial activity that shows a phone disambig dialog -->
@@ -569,13 +588,13 @@
         <!-- vCard related -->
         <activity android:name=".vcard.ImportVCardActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="nosensor"
             android:theme="@style/BackgroundOnlyTheme">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <data android:mimeType="text/directory" />
                 <data android:mimeType="text/vcard" />
                 <data android:mimeType="text/x-vcard" />
-                <data android:mimeType="text/x-vCard" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -587,7 +606,6 @@
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <data android:mimeType="text/vcard" />
                 <data android:mimeType="text/x-vcard" />
-                <data android:mimeType="text/x-vCard" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -623,7 +641,8 @@
                     android:resource="@xml/social_widget_info" />
         </receiver>
 
-        <receiver android:name=".calllog.CallLogReceiver">
+        <receiver android:name=".calllog.CallLogReceiver"
+            android:enabled="@*android:bool/config_voice_capable">
             <intent-filter>
                 <action android:name="android.intent.action.NEW_VOICEMAIL" />
                 <data
@@ -649,5 +668,16 @@
             android:name=".calllog.CallLogNotificationsService"
             android:exported="false"
         />
+
+        <!-- Service that is exclusively for the Phone application that sends out a view
+             notification. This service might be removed in future versions of the app  -->
+        <service android:name=".ViewNotificationService"
+            android:permission="android.permission.WRITE_CONTACTS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.contacts.VIEW_NOTIFICATION" />
+                <data android:mimeType="vnd.android.cursor.item/contact" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

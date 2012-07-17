@@ -23,13 +23,13 @@ import com.android.contacts.GroupMemberLoader.GroupEditorQuery;
 import com.android.contacts.GroupMetaDataLoader;
 import com.android.contacts.R;
 import com.android.contacts.activities.GroupEditorActivity;
-import com.android.contacts.editor.ContactEditorFragment.SaveMode;
 import com.android.contacts.editor.SelectAccountDialogFragment;
 import com.android.contacts.group.SuggestedMemberListAdapter.SuggestedMember;
 import com.android.contacts.model.AccountType;
 import com.android.contacts.model.AccountTypeManager;
 import com.android.contacts.model.AccountWithDataSet;
 import com.android.contacts.util.AccountsListAdapter.AccountListFilter;
+import com.android.contacts.util.ViewUtil;
 import com.android.internal.util.Objects;
 
 import android.accounts.Account;
@@ -121,8 +121,6 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
     private static final int LOADER_GROUP_METADATA = 1;
     private static final int LOADER_EXISTING_MEMBERS = 2;
     private static final int LOADER_NEW_GROUP_MEMBER = 3;
-
-    public static final String SAVE_MODE_EXTRA_KEY = "saveMode";
 
     private static final String MEMBER_RAW_CONTACT_ID_KEY = "rawContactId";
     private static final String MEMBER_LOOKUP_URI_KEY = "memberLookupUri";
@@ -502,7 +500,7 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
 
     public void onDoneClicked() {
         if (isGroupMembershipEditable()) {
-            save(SaveMode.CLOSE);
+            save();
         } else {
             // Just revert it.
             doRevertAction();
@@ -550,12 +548,11 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
         public Dialog onCreateDialog(Bundle savedInstanceState) {
             AlertDialog dialog = new AlertDialog.Builder(getActivity())
                     .setIconAttribute(android.R.attr.alertDialogIcon)
-                    .setTitle(R.string.cancel_confirmation_dialog_title)
                     .setMessage(R.string.cancel_confirmation_dialog_message)
                     .setPositiveButton(android.R.string.ok,
                         new DialogInterface.OnClickListener() {
                             @Override
-                            public void onClick(DialogInterface dialog, int whichButton) {
+                            public void onClick(DialogInterface dialogInterface, int whichButton) {
                                 ((GroupEditorFragment) getTargetFragment()).doRevertAction();
                             }
                         }
@@ -571,19 +568,17 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
      * finishes the activity. This actually only handles saving the group name.
      * @return true when successful
      */
-    public boolean save(int saveMode) {
+    public boolean save() {
         if (!hasValidGroupName() || mStatus != Status.EDITING) {
             return false;
         }
 
         // If we are about to close the editor - there is no need to refresh the data
-        if (saveMode == SaveMode.CLOSE) {
-            getLoaderManager().destroyLoader(LOADER_EXISTING_MEMBERS);
-        }
+        getLoaderManager().destroyLoader(LOADER_EXISTING_MEMBERS);
 
         // If there are no changes, then go straight to onSaveCompleted()
         if (!hasNameChange() && !hasMembershipChange()) {
-            onSaveCompleted(false, SaveMode.CLOSE, mGroupUri);
+            onSaveCompleted(false, mGroupUri);
             return true;
         }
 
@@ -623,50 +618,40 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
         return true;
     }
 
-    public void onSaveCompleted(boolean hadChanges, int saveMode, Uri groupUri) {
+    public void onSaveCompleted(boolean hadChanges, Uri groupUri) {
         boolean success = groupUri != null;
-        Log.d(TAG, "onSaveCompleted(" + saveMode + ", " + groupUri + ")");
+        Log.d(TAG, "onSaveCompleted(" + groupUri + ")");
         if (hadChanges) {
             Toast.makeText(mContext, success ? R.string.groupSavedToast :
                     R.string.groupSavedErrorToast, Toast.LENGTH_SHORT).show();
         }
-        switch (saveMode) {
-            case SaveMode.CLOSE:
-            case SaveMode.HOME:
-                final Intent resultIntent;
-                final int resultCode;
-                if (success && groupUri != null) {
-                    final String requestAuthority =
-                            groupUri == null ? null : groupUri.getAuthority();
+        final Intent resultIntent;
+        final int resultCode;
+        if (success && groupUri != null) {
+            final String requestAuthority = groupUri.getAuthority();
 
-                    resultIntent = new Intent();
-                    if (LEGACY_CONTACTS_AUTHORITY.equals(requestAuthority)) {
-                        // Build legacy Uri when requested by caller
-                        final long groupId = ContentUris.parseId(groupUri);
-                        final Uri legacyContentUri = Uri.parse("content://contacts/groups");
-                        final Uri legacyUri = ContentUris.withAppendedId(
-                                legacyContentUri, groupId);
-                        resultIntent.setData(legacyUri);
-                    } else {
-                        // Otherwise pass back the given Uri
-                        resultIntent.setData(groupUri);
-                    }
+            resultIntent = new Intent();
+            if (LEGACY_CONTACTS_AUTHORITY.equals(requestAuthority)) {
+                // Build legacy Uri when requested by caller
+                final long groupId = ContentUris.parseId(groupUri);
+                final Uri legacyContentUri = Uri.parse("content://contacts/groups");
+                final Uri legacyUri = ContentUris.withAppendedId(
+                        legacyContentUri, groupId);
+                resultIntent.setData(legacyUri);
+            } else {
+                // Otherwise pass back the given Uri
+                resultIntent.setData(groupUri);
+            }
 
-                    resultCode = Activity.RESULT_OK;
-                } else {
-                    resultCode = Activity.RESULT_CANCELED;
-                    resultIntent = null;
-                }
-                // It is already saved, so prevent that it is saved again
-                mStatus = Status.CLOSING;
-                if (mListener != null) {
-                    mListener.onSaveFinished(resultCode, resultIntent);
-                }
-                break;
-            case SaveMode.RELOAD:
-                // TODO: Handle reloading the group list
-            default:
-                throw new IllegalStateException("Unsupported save mode " + saveMode);
+            resultCode = Activity.RESULT_OK;
+        } else {
+            resultCode = Activity.RESULT_CANCELED;
+            resultIntent = null;
+        }
+        // It is already saved, so prevent that it is saved again
+        mStatus = Status.CLOSING;
+        if (mListener != null) {
+            mListener.onSaveFinished(resultCode, resultIntent);
         }
     }
 
@@ -853,7 +838,6 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
      * This represents a single member of the current group.
      */
     public static class Member implements Parcelable {
-        private static final Member[] EMPTY_ARRAY = new Member[0];
 
         // TODO: Switch to just dealing with raw contact IDs everywhere if possible
         private final long mRawContactId;
@@ -895,9 +879,14 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
         public boolean equals(Object object) {
             if (object instanceof Member) {
                 Member otherMember = (Member) object;
-                return otherMember != null && Objects.equal(mLookupUri, otherMember.getLookupUri());
+                return Objects.equal(mLookupUri, otherMember.getLookupUri());
             }
             return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return mLookupUri == null ? 0 : mLookupUri.hashCode();
         }
 
         // Parcelable
@@ -924,10 +913,12 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
         }
 
         public static final Parcelable.Creator<Member> CREATOR = new Parcelable.Creator<Member>() {
+            @Override
             public Member createFromParcel(Parcel in) {
                 return new Member(in);
             }
 
+            @Override
             public Member[] newArray(int size) {
                 return new Member[size];
             }
@@ -969,7 +960,8 @@ public class GroupEditorFragment extends Fragment implements SelectAccountDialog
                 });
             }
 
-            mPhotoManager.loadPhoto(badge, member.getPhotoUri(), false, false);
+            mPhotoManager.loadPhoto(badge, member.getPhotoUri(),
+                    ViewUtil.getConstantPreLayoutWidth(badge), false);
             return result;
         }
 

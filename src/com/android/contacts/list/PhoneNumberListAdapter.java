@@ -22,22 +22,30 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.net.Uri.Builder;
 import android.provider.ContactsContract;
+import android.provider.ContactsContract.CommonDataKinds.Callable;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
+import android.provider.ContactsContract.CommonDataKinds.SipAddress;
 import android.provider.ContactsContract.ContactCounts;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.Directory;
-import android.provider.ContactsContract.RawContacts;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.android.contacts.R;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A cursor adapter for the {@link Phone#CONTENT_TYPE} content type.
+ * A cursor adapter for the {@link Phone#CONTENT_ITEM_TYPE} and
+ * {@link SipAddress#CONTENT_ITEM_TYPE}.
+ *
+ * By default this adapter just handles phone numbers. When {@link #setUseCallableUri(boolean)} is
+ * called with "true", this adapter starts handling SIP addresses too, by using {@link Callable}
+ * API instead of {@link Phone}.
  */
 public class PhoneNumberListAdapter extends ContactEntryListAdapter {
     private static final String TAG = PhoneNumberListAdapter.class.getSimpleName();
@@ -79,9 +87,11 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
 
     private ContactListItemView.PhotoPosition mPhotoPosition;
 
+    private boolean mUseCallableUri;
+
     public PhoneNumberListAdapter(Context context) {
         super(context);
-
+        setDefaultFilterHeaderText(R.string.list_filter_phones);
         mUnknownNameText = context.getText(android.R.string.unknownName);
     }
 
@@ -91,40 +101,37 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
 
     @Override
     public void configureLoader(CursorLoader loader, long directoryId) {
-        Uri uri;
-
         if (directoryId != Directory.DEFAULT) {
             Log.w(TAG, "PhoneNumberListAdapter is not ready for non-default directory ID ("
                     + "directoryId: " + directoryId + ")");
         }
 
+        final Builder builder;
         if (isSearchMode()) {
-            String query = getQueryString();
-            Builder builder = Phone.CONTENT_FILTER_URI.buildUpon();
+            final Uri baseUri =
+                    mUseCallableUri ? Callable.CONTENT_FILTER_URI : Phone.CONTENT_FILTER_URI;
+            builder = baseUri.buildUpon();
+            final String query = getQueryString();
             if (TextUtils.isEmpty(query)) {
                 builder.appendPath("");
             } else {
                 builder.appendPath(query);      // Builder will encode the query
             }
-
             builder.appendQueryParameter(ContactsContract.DIRECTORY_PARAM_KEY,
                     String.valueOf(directoryId));
-            uri = builder.build();
         } else {
-            uri = Phone.CONTENT_URI.buildUpon().appendQueryParameter(
-                    ContactsContract.DIRECTORY_PARAM_KEY, String.valueOf(Directory.DEFAULT))
-                    .build();
+            final Uri baseUri = mUseCallableUri ? Callable.CONTENT_URI : Phone.CONTENT_URI;
+            builder = baseUri.buildUpon().appendQueryParameter(
+                    ContactsContract.DIRECTORY_PARAM_KEY, String.valueOf(Directory.DEFAULT));
             if (isSectionHeaderDisplayEnabled()) {
-                uri = buildSectionIndexerUri(uri);
+                builder.appendQueryParameter(ContactCounts.ADDRESS_BOOK_INDEX_EXTRAS, "true");
             }
-            configureSelection(loader, directoryId, getFilter());
+            applyFilter(loader, builder, directoryId, getFilter());
         }
 
         // Remove duplicates when it is possible.
-        uri = uri.buildUpon()
-                .appendQueryParameter(ContactsContract.REMOVE_DUPLICATE_ENTRIES, "true")
-                .build();
-        loader.setUri(uri);
+        builder.appendQueryParameter(ContactsContract.REMOVE_DUPLICATE_ENTRIES, "true");
+        loader.setUri(builder.build());
 
         // TODO a projection that includes the search snippet
         if (getContactNameDisplayOrder() == ContactsContract.Preferences.DISPLAY_ORDER_PRIMARY) {
@@ -140,8 +147,12 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
         }
     }
 
-    private void configureSelection(
-            CursorLoader loader, long directoryId, ContactListFilter filter) {
+    /**
+     * Configure {@code loader} and {@code uriBuilder} according to {@code directoryId} and {@code
+     * filter}.
+     */
+    private void applyFilter(CursorLoader loader, Uri.Builder uriBuilder, long directoryId,
+            ContactListFilter filter) {
         if (filter == null || directoryId != Directory.DEFAULT) {
             return;
         }
@@ -156,19 +167,7 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
                 break;
             }
             case ContactListFilter.FILTER_TYPE_ACCOUNT: {
-                selection.append("(");
-
-                selection.append(RawContacts.ACCOUNT_TYPE + "=?"
-                        + " AND " + RawContacts.ACCOUNT_NAME + "=?");
-                selectionArgs.add(filter.accountType);
-                selectionArgs.add(filter.accountName);
-                if (filter.dataSet != null) {
-                    selection.append(" AND " + RawContacts.DATA_SET + "=?");
-                    selectionArgs.add(filter.dataSet);
-                } else {
-                    selection.append(" AND " + RawContacts.DATA_SET + " IS NULL");
-                }
-                selection.append(")");
+                filter.addAccountQueryParameterToUrl(uriBuilder);
                 break;
             }
             case ContactListFilter.FILTER_TYPE_ALL_ACCOUNTS:
@@ -185,11 +184,6 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
         }
         loader.setSelection(selection.toString());
         loader.setSelectionArgs(selectionArgs.toArray(new String[0]));
-    }
-
-    protected static Uri buildSectionIndexerUri(Uri uri) {
-        return uri.buildUpon()
-                .appendQueryParameter(ContactCounts.ADDRESS_BOOK_INDEX_EXTRAS, "true").build();
     }
 
     @Override
@@ -227,6 +221,8 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
     protected void bindView(View itemView, int partition, Cursor cursor, int position) {
         ContactListItemView view = (ContactListItemView)itemView;
 
+        view.setHighlightedPrefix(isSearchMode() ? getUpperCaseQueryString() : null);
+
         // Look at elements before and after this position, checking if contact IDs are same.
         // If they have one same contact ID, it means they can be grouped.
         //
@@ -259,7 +255,9 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
         if (isFirstEntry) {
             bindName(view, cursor);
             if (isQuickContactEnabled()) {
-                bindQuickContact(view, partition, cursor, PhoneQuery.PHONE_PHOTO_ID,
+                // No need for photo uri here, because we can not have directory results. If we
+                // ever do, we need to add photo uri to the query
+                bindQuickContact(view, partition, cursor, PhoneQuery.PHONE_PHOTO_ID, -1,
                         PhoneQuery.PHONE_CONTACT_ID, PhoneQuery.PHONE_LOOKUP_KEY);
             } else {
                 bindPhoto(view, cursor);
@@ -312,7 +310,7 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
             photoId = cursor.getLong(PhoneQuery.PHONE_PHOTO_ID);
         }
 
-        getPhotoLoader().loadPhoto(view.getPhotoView(), photoId, false, false);
+        getPhotoLoader().loadThumbnail(view.getPhotoView(), photoId, false);
     }
 
     public void setPhotoPosition(ContactListItemView.PhotoPosition photoPosition) {
@@ -321,5 +319,13 @@ public class PhoneNumberListAdapter extends ContactEntryListAdapter {
 
     public ContactListItemView.PhotoPosition getPhotoPosition() {
         return mPhotoPosition;
+    }
+
+    public void setUseCallableUri(boolean useCallableUri) {
+        mUseCallableUri = useCallableUri;
+    }
+
+    public boolean usesCallableUri() {
+        return mUseCallableUri;
     }
 }

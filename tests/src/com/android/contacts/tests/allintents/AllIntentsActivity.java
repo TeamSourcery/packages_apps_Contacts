@@ -90,6 +90,8 @@ public class AllIntentsActivity extends ListActivity
         ACTION_GET_CONTENT_POSTAL,
         ACTION_GET_CONTENT_POSTAL_LEGACY,
         ACTION_INSERT_OR_EDIT,
+        ACTION_INSERT_OR_EDIT_PHONE_NUMBER,
+        ACTION_INSERT_OR_EDIT_EMAIL_ADDRESS,
         ACTION_SEARCH_CALL,
         ACTION_SEARCH_CONTACT,
         ACTION_SEARCH_EMAIL,
@@ -275,6 +277,20 @@ public class AllIntentsActivity extends ListActivity
                 startActivity(intent);
                 break;
             }
+            case ACTION_INSERT_OR_EDIT_PHONE_NUMBER: {
+                Intent intent = new Intent(Intent.ACTION_INSERT_OR_EDIT);
+                intent.setType(Contacts.CONTENT_ITEM_TYPE);
+                intent.putExtra(Insert.PHONE, "5123456789");
+                startActivity(intent);
+                break;
+            }
+            case ACTION_INSERT_OR_EDIT_EMAIL_ADDRESS: {
+                Intent intent = new Intent(Intent.ACTION_INSERT_OR_EDIT);
+                intent.setType(Contacts.CONTENT_ITEM_TYPE);
+                intent.putExtra(Insert.EMAIL, "android@android.com");
+                startActivity(intent);
+                break;
+            }
             case ACTION_SEARCH_CALL: {
                 Intent intent = new Intent(Intent.ACTION_SEARCH);
                 intent.putExtra(SearchManager.ACTION_MSG, "call");
@@ -290,11 +306,15 @@ public class AllIntentsActivity extends ListActivity
                 break;
             }
             case ACTION_SEARCH_EMAIL: {
-                Toast.makeText(this, "Unsupported", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(Intent.ACTION_SEARCH);
+                intent.putExtra(Insert.EMAIL, "a");
+                startSearchResultActivity(intent);
                 break;
             }
             case ACTION_SEARCH_PHONE: {
-                Toast.makeText(this, "Unsupported", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(Intent.ACTION_SEARCH);
+                intent.putExtra(Insert.PHONE, "800");
+                startSearchResultActivity(intent);
                 break;
             }
             case SEARCH_SUGGESTION_CLICKED_CALL_BUTTON: {

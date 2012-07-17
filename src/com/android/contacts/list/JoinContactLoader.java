@@ -18,18 +18,46 @@ package com.android.contacts.list;
 import android.content.Context;
 import android.content.CursorLoader;
 import android.database.Cursor;
-import android.database.MatrixCursor;
+import android.database.CursorWrapper;
 import android.net.Uri;
 
 /**
  * A specialized loader for the Join Contacts UI.  It executes two queries:
  * join suggestions and (optionally) the full contact list.
+ *
+ * This loader also loads the "suggestion" cursor, which can be accessed with:
+ * {@code ((JoinContactLoaderResult) result).suggestionCursor }
  */
 public class JoinContactLoader extends CursorLoader {
 
     private String[] mProjection;
     private Uri mSuggestionUri;
-    private MatrixCursor mSuggestionsCursor;
+
+    /**
+     * Actual returned class.  It's guaranteed that this loader always returns an instance of this
+     * class.  This class is needed to tie the lifecycle of the second cursor to that of the
+     * primary one.
+     *
+     * Note we can't change the result type of this loader itself, because CursorLoader
+     * extends AsyncTaskLoader<Cursor>, not AsyncTaskLoader<? extends Cursor>
+     */
+    public static class JoinContactLoaderResult extends CursorWrapper {
+        public final Cursor suggestionCursor;
+
+        public JoinContactLoaderResult(Cursor baseCursor, Cursor suggestionCursor) {
+            super(baseCursor);
+            this.suggestionCursor = suggestionCursor;
+        }
+
+        @Override
+        public void close() {
+            try {
+                suggestionCursor.close();
+            } finally {
+                super.close();
+            }
+        }
+    }
 
     public JoinContactLoader(Context context) {
         super(context, null, null, null, null, null);
@@ -45,36 +73,12 @@ public class JoinContactLoader extends CursorLoader {
         this.mProjection = projection;
     }
 
-    public Cursor getSuggestionsCursor() {
-        return mSuggestionsCursor;
-    }
-
     @Override
     public Cursor loadInBackground() {
         // First execute the suggestions query, then call super.loadInBackground
         // to load the entire list
-        mSuggestionsCursor = loadSuggestions();
-        return super.loadInBackground();
-    }
-
-    /**
-     * Loads join suggestions into a MatrixCursor.
-     */
-    private MatrixCursor loadSuggestions() {
-        Cursor cursor = getContext().getContentResolver().query(mSuggestionUri, mProjection,
-                null, null, null);
-        try {
-            MatrixCursor matrix = new MatrixCursor(mProjection);
-            Object[] row = new Object[mProjection.length];
-            while (cursor.moveToNext()) {
-                for (int i = 0; i < row.length; i++) {
-                    row[i] = cursor.getString(i);
-                }
-                matrix.addRow(row);
-            }
-            return matrix;
-        } finally {
-            cursor.close();
-        }
+        final Cursor suggestionsCursor = getContext().getContentResolver()
+                .query(mSuggestionUri, mProjection, null, null, null);
+        return new JoinContactLoaderResult(super.loadInBackground(), suggestionsCursor);
     }
 }

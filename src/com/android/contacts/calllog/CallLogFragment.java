@@ -19,7 +19,7 @@ package com.android.contacts.calllog;
 import com.android.common.io.MoreCloseables;
 import com.android.contacts.ContactsUtils;
 import com.android.contacts.R;
-import com.android.contacts.activities.DialtactsActivity.ViewPagerVisibilityListener;
+import com.android.contacts.util.Constants;
 import com.android.contacts.util.EmptyLoader;
 import com.android.contacts.voicemail.VoicemailStatusHelper;
 import com.android.contacts.voicemail.VoicemailStatusHelper.StatusMessage;
@@ -33,11 +33,15 @@ import android.app.KeyguardManager;
 import android.app.ListFragment;
 import android.content.Context;
 import android.content.Intent;
+import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.provider.CallLog;
+import android.provider.ContactsContract;
 import android.provider.CallLog.Calls;
 import android.telephony.PhoneNumberUtils;
 import android.text.TextUtils;
@@ -56,8 +60,8 @@ import java.util.List;
 /**
  * Displays a list of call log entries.
  */
-public class CallLogFragment extends ListFragment implements ViewPagerVisibilityListener,
-        CallLogQueryHandler.Listener, CallLogAdapter.CallFetcher {
+public class CallLogFragment extends ListFragment
+        implements CallLogQueryHandler.Listener, CallLogAdapter.CallFetcher {
     private static final String TAG = "CallLogFragment";
 
     /**
@@ -69,7 +73,6 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
     private CallLogQueryHandler mCallLogQueryHandler;
     private boolean mScrollToTop;
 
-    private boolean mShowOptionsMenu;
     /** Whether there is at least one voicemail source installed. */
     private boolean mVoicemailSourcesAvailable = false;
     /** Whether we are currently filtering over voicemail. */
@@ -85,6 +88,26 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
     private boolean mCallLogFetched;
     private boolean mVoicemailStatusFetched;
 
+    private final Handler mHandler = new Handler();
+
+    private class CustomContentObserver extends ContentObserver {
+        public CustomContentObserver() {
+            super(mHandler);
+        }
+        @Override
+        public void onChange(boolean selfChange) {
+            mRefreshDataRequired = true;
+        }
+    }
+
+    // See issue 6363009
+    private final ContentObserver mCallLogObserver = new CustomContentObserver();
+    private final ContentObserver mContactsObserver = new CustomContentObserver();
+    private boolean mRefreshDataRequired = true;
+
+    // Exactly same variable is in Fragment as a package private.
+    private boolean mMenuVisible = true;
+
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -92,6 +115,10 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
         mCallLogQueryHandler = new CallLogQueryHandler(getActivity().getContentResolver(), this);
         mKeyguardManager =
                 (KeyguardManager) getActivity().getSystemService(Context.KEYGUARD_SERVICE);
+        getActivity().getContentResolver().registerContentObserver(
+                CallLog.CONTENT_URI, true, mCallLogObserver);
+        getActivity().getContentResolver().registerContentObserver(
+                ContactsContract.Contacts.CONTENT_URI, true, mContactsObserver);
         setHasOptionsMenu(true);
     }
 
@@ -107,10 +134,25 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
         getActivity().invalidateOptionsMenu();
         if (mScrollToTop) {
             final ListView listView = getListView();
+            // The smooth-scroll animation happens over a fixed time period.
+            // As a result, if it scrolls through a large portion of the list,
+            // each frame will jump so far from the previous one that the user
+            // will not experience the illusion of downward motion.  Instead,
+            // if we're not already near the top of the list, we instantly jump
+            // near the top, and animate from there.
             if (listView.getFirstVisiblePosition() > 5) {
                 listView.setSelection(5);
             }
-            listView.smoothScrollToPosition(0);
+            // Workaround for framework issue: the smooth-scroll doesn't
+            // occur if setSelection() is called immediately before.
+            mHandler.post(new Runnable() {
+               @Override
+               public void run() {
+                   if (getActivity() == null || getActivity().isFinishing()) return;
+                   listView.smoothScrollToPosition(0);
+               }
+            });
+
             mScrollToTop = false;
         }
         mCallLogFetched = true;
@@ -173,10 +215,22 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
         getListView().setItemsCanFocus(true);
     }
 
+    /**
+     * Based on the new intent, decide whether the list should be configured
+     * to scroll up to display the first item.
+     */
+    public void configureScreenFromIntent(Intent newIntent) {
+        // Typically, when switching to the call-log we want to show the user
+        // the same section of the list that they were most recently looking
+        // at.  However, under some circumstances, we want to automatically
+        // scroll to the top of the list to present the newest call items.
+        // For example, immediately after a call is finished, we want to
+        // display information about that call.
+        mScrollToTop = Calls.CONTENT_TYPE.equals(newIntent.getType());
+    }
+
     @Override
     public void onStart() {
-        mScrollToTop = true;
-
         // Start the empty loader now to defer other fragments.  We destroy it when both calllog
         // and the voicemail status are fetched.
         getLoaderManager().initLoader(EMPTY_LOADER_ID, null,
@@ -238,6 +292,8 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
         super.onDestroy();
         mAdapter.stopRequestProcessing();
         mAdapter.changeCursor(null);
+        getActivity().getContentResolver().unregisterContentObserver(mCallLogObserver);
+        getActivity().getContentResolver().unregisterContentObserver(mContactsObserver);
     }
 
     @Override
@@ -265,24 +321,20 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
-        if (mShowOptionsMenu) {
-            inflater.inflate(R.menu.call_log_options, menu);
-        }
+        inflater.inflate(R.menu.call_log_options, menu);
     }
 
     @Override
     public void onPrepareOptionsMenu(Menu menu) {
-        if (mShowOptionsMenu) {
-            final MenuItem itemDeleteAll = menu.findItem(R.id.delete_all);
-            // Check if all the menu items are inflated correctly. As a shortcut, we assume all
-            // menu items are ready if the first item is non-null.
-            if (itemDeleteAll != null) {
-                itemDeleteAll.setEnabled(mAdapter != null && !mAdapter.isEmpty());
-                menu.findItem(R.id.show_voicemails_only).setVisible(
-                        mVoicemailSourcesAvailable && !mShowingVoicemailOnly);
-                menu.findItem(R.id.show_all_calls).setVisible(
-                        mVoicemailSourcesAvailable && mShowingVoicemailOnly);
-            }
+        final MenuItem itemDeleteAll = menu.findItem(R.id.delete_all);
+        // Check if all the menu items are inflated correctly. As a shortcut, we assume all
+        // menu items are ready if the first item is non-null.
+        if (itemDeleteAll != null) {
+            itemDeleteAll.setEnabled(mAdapter != null && !mAdapter.isEmpty());
+            menu.findItem(R.id.show_voicemails_only).setVisible(
+                    mVoicemailSourcesAvailable && !mShowingVoicemailOnly);
+            menu.findItem(R.id.show_all_calls).setVisible(
+                    mVoicemailSourcesAvailable && mShowingVoicemailOnly);
         }
     }
 
@@ -329,8 +381,8 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
             Intent intent;
             // If "number" is really a SIP address, construct a sip: URI.
             if (PhoneNumberUtils.isUriNumber(number)) {
-                intent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
-                                    Uri.fromParts("sip", number, null));
+                intent = ContactsUtils.getCallIntent(
+                        Uri.fromParts(Constants.SCHEME_SIP, number, null));
             } else {
                 // We're calling a regular PSTN phone number.
                 // Construct a tel: URI, but do some other possible cleanup first.
@@ -342,8 +394,8 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
                     String countryIso = cursor.getString(CallLogQuery.COUNTRY_ISO);
                     number = mAdapter.getBetterNumberFromContacts(number, countryIso);
                 }
-                intent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
-                                    Uri.fromParts("tel", number, null));
+                intent = ContactsUtils.getCallIntent(
+                        Uri.fromParts(Constants.SCHEME_TEL, number, null));
             }
             intent.setFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
@@ -357,33 +409,30 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
     }
 
     @Override
-    public void onVisibilityChanged(boolean visible) {
-        if (mShowOptionsMenu != visible) {
-            mShowOptionsMenu = visible;
-            // Invalidate the options menu since we are changing the list of options shown in it.
-            Activity activity = getActivity();
-            if (activity != null) {
-                activity.invalidateOptionsMenu();
+    public void setMenuVisibility(boolean menuVisible) {
+        super.setMenuVisibility(menuVisible);
+        if (mMenuVisible != menuVisible) {
+            mMenuVisible = menuVisible;
+            if (!menuVisible) {
+                updateOnExit();
+            } else if (isResumed()) {
+                refreshData();
             }
-        }
-
-        if (visible && isResumed()) {
-            refreshData();
-        }
-
-        if (!visible) {
-            updateOnExit();
         }
     }
 
     /** Requests updates to the data to be shown. */
     private void refreshData() {
-        // Mark all entries in the contact info cache as out of date, so they will be looked up
-        // again once being shown.
-        mAdapter.invalidateCache();
-        startCallsQuery();
-        startVoicemailStatusQuery();
-        updateOnEntry();
+        // Prevent unnecessary refresh.
+        if (mRefreshDataRequired) {
+            // Mark all entries in the contact info cache as out of date, so they will be looked up
+            // again once being shown.
+            mAdapter.invalidateCache();
+            startCallsQuery();
+            startVoicemailStatusQuery();
+            updateOnEntry();
+            mRefreshDataRequired = false;
+        }
     }
 
     /** Removes the missed call notifications. */
@@ -415,7 +464,8 @@ public class CallLogFragment extends ListFragment implements ViewPagerVisibility
     private void updateOnTransition(boolean onEntry) {
         // We don't want to update any call data when keyguard is on because the user has likely not
         // seen the new calls yet.
-        if (!mKeyguardManager.inKeyguardRestrictedInputMode()) {
+        // This might be called before onCreate() and thus we need to check null explicitly.
+        if (mKeyguardManager != null && !mKeyguardManager.inKeyguardRestrictedInputMode()) {
             // On either of the transitions we reset the new flag and update the notifications.
             // While exiting we additionally consume all missed calls (by marking them as read).
             // This will ensure that they no more appear in the "new" section when we return back.

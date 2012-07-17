@@ -18,6 +18,7 @@ package com.android.contacts.list;
 import com.android.contacts.R;
 
 import android.app.Fragment;
+import android.content.Context;
 import android.os.Bundle;
 import android.provider.ContactsContract.ProviderStatus;
 import android.view.Gravity;
@@ -35,8 +36,6 @@ import android.widget.TextView;
  */
 public class ContactsUnavailableFragment extends Fragment implements OnClickListener {
 
-    private ProviderStatusLoader mProviderStatusLoader;
-
     private View mView;
     private TextView mMessageView;
     private TextView mSecondaryMessageView;
@@ -50,6 +49,13 @@ public class ContactsUnavailableFragment extends Fragment implements OnClickList
     private int mNSecNoContactsMsgResId = -1;
 
     private OnContactsUnavailableActionListener mListener;
+
+    private ProviderStatusWatcher.Status mProviderStatus;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
 
     @Override
     public View onCreateView(
@@ -68,7 +74,11 @@ public class ContactsUnavailableFragment extends Fragment implements OnClickList
         mRetryUpgradeButton = (Button) mView.findViewById(R.id.import_failure_retry_button);
         mRetryUpgradeButton.setOnClickListener(this);
         mProgress = (ProgressBar) mView.findViewById(R.id.progress);
-        update();
+
+        if (mProviderStatus != null) {
+            updateStatus(mProviderStatus);
+        }
+
         return mView;
     }
 
@@ -77,13 +87,13 @@ public class ContactsUnavailableFragment extends Fragment implements OnClickList
         mListener = listener;
     }
 
-    public void setProviderStatusLoader(ProviderStatusLoader loader) {
-        mProviderStatusLoader = loader;
-    }
-
-    public void update() {
-        int providerStatus = mProviderStatusLoader.getProviderStatus();
-        switch (providerStatus) {
+    public void updateStatus(ProviderStatusWatcher.Status providerStatus) {
+        mProviderStatus = providerStatus;
+        if (mView == null) {
+            // The view hasn't been inflated yet.
+            return;
+        }
+        switch (providerStatus.status) {
             case ProviderStatus.STATUS_NO_ACCOUNTS_NO_CONTACTS:
                 setMessageText(mNoContactsMsgResId, mNSecNoContactsMsgResId);
                 mCreateContactButton.setVisibility(View.VISIBLE);
@@ -120,7 +130,7 @@ public class ContactsUnavailableFragment extends Fragment implements OnClickList
 
             case ProviderStatus.STATUS_UPGRADE_OUT_OF_MEMORY:
                 String message = getResources().getString(R.string.upgrade_out_of_memory,
-                        new Object[] { mProviderStatusLoader.getProviderStatusData() });
+                        new Object[] { providerStatus.data});
                 mMessageView.setText(message);
                 mMessageView.setGravity(Gravity.LEFT);
                 mMessageView.setVisibility(View.VISIBLE);
@@ -153,7 +163,10 @@ public class ContactsUnavailableFragment extends Fragment implements OnClickList
                 mListener.onFreeInternalStorageAction();
                 break;
             case R.id.import_failure_retry_button:
-                mProviderStatusLoader.retryUpgrade();
+                final Context context = getActivity();
+                if (context != null) { // Just in case.
+                    ProviderStatusWatcher.retryUpgrade(context);
+                }
                 break;
         }
     }
@@ -165,9 +178,8 @@ public class ContactsUnavailableFragment extends Fragment implements OnClickList
     public void setMessageText(int resId, int secResId) {
         mNoContactsMsgResId = resId;
         mNSecNoContactsMsgResId = secResId;
-        if (mMessageView != null &&
-                mProviderStatusLoader.getProviderStatus() ==
-                    ProviderStatus.STATUS_NO_ACCOUNTS_NO_CONTACTS) {
+        if ((mMessageView != null) && (mProviderStatus != null) &&
+                (mProviderStatus.status == ProviderStatus.STATUS_NO_ACCOUNTS_NO_CONTACTS)) {
             if (resId != -1) {
                 mMessageView.setText(mNoContactsMsgResId);
                 mMessageView.setGravity(Gravity.CENTER_HORIZONTAL);

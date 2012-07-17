@@ -17,6 +17,7 @@
 package com.android.contacts;
 
 import com.android.internal.telephony.ITelephony;
+import com.android.internal.telephony.TelephonyCapabilities;
 
 import android.app.AlertDialog;
 import android.app.KeyguardManager;
@@ -28,6 +29,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.provider.Telephony.Intents;
@@ -53,6 +55,23 @@ import android.widget.Toast;
 public class SpecialCharSequenceMgr {
     private static final String TAG = "SpecialCharSequenceMgr";
     private static final String MMI_IMEI_DISPLAY = "*#06#";
+
+    /**
+     * Remembers the previous {@link QueryHandler} and cancel the operation when needed, to
+     * prevent possible crash.
+     *
+     * QueryHandler may call {@link ProgressDialog#dismiss()} when the screen is already gone,
+     * which will cause the app crash. This variable enables the class to prevent the crash
+     * on {@link #cleanup()}.
+     *
+     * TODO: Remove this and replace it (and {@link #cleanup()}) with better implementation.
+     * One complication is that we have SpecialCharSequencMgr in Phone package too, which has
+     * *slightly* different implementation. Note that Phone package doesn't have this problem,
+     * so the class on Phone side doesn't have this functionality.
+     * Fundamental fix would be to have one shared implementation and resolve this corner case more
+     * gracefully.
+     */
+    private static QueryHandler sPreviousAdnQueryHandler;
 
     /** This class is never instantiated. */
     private SpecialCharSequenceMgr() {
@@ -80,6 +99,23 @@ public class SpecialCharSequenceMgr {
         }
 
         return false;
+    }
+
+    /**
+     * Cleanup everything around this class. Must be run inside the main thread.
+     *
+     * This should be called when the screen becomes background.
+     */
+    public static void cleanup() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Log.wtf(TAG, "cleanup() is called outside the main thread");
+            return;
+        }
+
+        if (sPreviousAdnQueryHandler != null) {
+            sPreviousAdnQueryHandler.cancel();
+            sPreviousAdnQueryHandler = null;
+        }
     }
 
     /**
@@ -113,6 +149,13 @@ public class SpecialCharSequenceMgr {
      */
     static boolean handleAdnEntry(Context context, String input, EditText textField) {
         /* ADN entries are of the form "N(N)(N)#" */
+
+        TelephonyManager telephonyManager =
+                (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager == null
+                || !TelephonyCapabilities.supportsAdn(telephonyManager.getCurrentPhoneType())) {
+            return false;
+        }
 
         // if the phone is keyguard-restricted, then just ignore this
         // input.  We want to make sure that sim card contacts are NOT
@@ -164,6 +207,12 @@ public class SpecialCharSequenceMgr {
                 // run the query.
                 handler.startQuery(ADN_QUERY_TOKEN, sc, Uri.parse("content://icc/adn"),
                         new String[]{ADN_PHONE_NUMBER_COLUMN_NAME}, null, null, null);
+
+                if (sPreviousAdnQueryHandler != null) {
+                    // It is harmless to call cancel() even after the handler's gone.
+                    sPreviousAdnQueryHandler.cancel();
+                }
+                sPreviousAdnQueryHandler = handler;
                 return true;
             } catch (NumberFormatException ex) {
                 // Ignore
@@ -186,15 +235,15 @@ public class SpecialCharSequenceMgr {
     }
 
     static boolean handleIMEIDisplay(Context context, String input, boolean useSystemWindow) {
-        if (input.equals(MMI_IMEI_DISPLAY)) {
-            int phoneType = ((TelephonyManager)context.getSystemService(
-                    Context.TELEPHONY_SERVICE)).getCurrentPhoneType();
-
+        TelephonyManager telephonyManager =
+                (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager != null && input.equals(MMI_IMEI_DISPLAY)) {
+            int phoneType = telephonyManager.getCurrentPhoneType();
             if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
-                showIMEIPanel(context, useSystemWindow);
+                showIMEIPanel(context, useSystemWindow, telephonyManager);
                 return true;
             } else if (phoneType == TelephonyManager.PHONE_TYPE_CDMA) {
-                showMEIDPanel(context, useSystemWindow);
+                showMEIDPanel(context, useSystemWindow, telephonyManager);
                 return true;
             }
         }
@@ -208,9 +257,9 @@ public class SpecialCharSequenceMgr {
     // the phone app's TelephonyCapabilities.getDeviceIdLabel() method
     // into the telephony framework, though.)
 
-    static void showIMEIPanel(Context context, boolean useSystemWindow) {
-        String imeiStr = ((TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE))
-                .getDeviceId();
+    private static void showIMEIPanel(Context context, boolean useSystemWindow,
+            TelephonyManager telephonyManager) {
+        String imeiStr = telephonyManager.getDeviceId();
 
         AlertDialog alert = new AlertDialog.Builder(context)
                 .setTitle(R.string.imei)
@@ -220,9 +269,9 @@ public class SpecialCharSequenceMgr {
                 .show();
     }
 
-    static void showMEIDPanel(Context context, boolean useSystemWindow) {
-        String meidStr = ((TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE))
-                .getDeviceId();
+    private static void showMEIDPanel(Context context, boolean useSystemWindow,
+            TelephonyManager telephonyManager) {
+        String meidStr = telephonyManager.getDeviceId();
 
         AlertDialog alert = new AlertDialog.Builder(context)
                 .setTitle(R.string.meid)
@@ -304,6 +353,8 @@ public class SpecialCharSequenceMgr {
      */
     private static class QueryHandler extends AsyncQueryHandler {
 
+        private boolean mCanceled;
+
         public QueryHandler(ContentResolver cr) {
             super(cr);
         }
@@ -314,6 +365,11 @@ public class SpecialCharSequenceMgr {
          */
         @Override
         protected void onQueryComplete(int token, Object cookie, Cursor c) {
+            sPreviousAdnQueryHandler = null;
+            if (mCanceled) {
+                return;
+            }
+
             SimContactQueryCookie sc = (SimContactQueryCookie) cookie;
 
             // close the progress dialog.
@@ -338,6 +394,13 @@ public class SpecialCharSequenceMgr {
                 Toast.makeText(context, name, Toast.LENGTH_SHORT)
                     .show();
             }
+        }
+
+        public void cancel() {
+            mCanceled = true;
+            // Ask AsyncQueryHandler to cancel the whole request. This will fails when the
+            // query already started.
+            cancelOperation(ADN_QUERY_TOKEN);
         }
     }
 }

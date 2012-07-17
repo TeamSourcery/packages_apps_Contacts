@@ -317,7 +317,7 @@ class T9Search {
                     holder.number.setText(s);
                 }
                 if (o.photo != null)
-                    mPhotoLoader.loadPhoto(holder.icon, o.photo, false, true);
+                    mPhotoLoader.loadDirectoryPhoto(holder.icon, o.photo, true);
                 else
                     holder.icon.setImageResource(ContactPhotoManager.getDefaultAvatarResId(false, true));
                 holder.icon.assignContactFromPhone(o.number, true);

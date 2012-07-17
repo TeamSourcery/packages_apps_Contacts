@@ -28,12 +28,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.View.OnLayoutChangeListener;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ListView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 
 /**
@@ -53,14 +53,16 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
     private Button mProfileMessage;
     private FrameLayout mMessageContainer;
     private TextView mProfileTitle;
-
-    private View mPaddingView;
+    private View mSearchProgress;
+    private TextView mSearchProgressText;
 
     private class FilterHeaderClickListener implements OnClickListener {
         @Override
         public void onClick(View view) {
             AccountFilterUtil.startAccountFilterActivityForResult(
-                        DefaultContactBrowseListFragment.this, REQUEST_CODE_ACCOUNT_FILTER);
+                        DefaultContactBrowseListFragment.this,
+                        REQUEST_CODE_ACCOUNT_FILTER,
+                        getFilter());
         }
     }
     private OnClickListener mFilterHeaderClickListener = new FilterHeaderClickListener();
@@ -85,7 +87,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
     protected ContactListAdapter createListAdapter() {
         DefaultContactListAdapter adapter = new DefaultContactListAdapter(getContext());
         adapter.setSectionHeaderDisplayEnabled(isSectionHeaderDisplayEnabled());
-        adapter.setDisplayPhotos(true);
+        adapter.setDisplayPhotos(getResources().getBoolean(R.bool.config_browse_list_show_images));
         return adapter;
     }
 
@@ -114,12 +116,21 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
         headerContainer.addView(mSearchHeaderView);
         getListView().addHeaderView(headerContainer, null, false);
         checkHeaderViewVisibility();
+
+        mSearchProgress = getView().findViewById(R.id.search_progress);
+        mSearchProgressText = (TextView) mSearchHeaderView.findViewById(R.id.totalContactsText);
     }
 
     @Override
     protected void setSearchMode(boolean flag) {
         super.setSearchMode(flag);
         checkHeaderViewVisibility();
+        if (!flag) showSearchProgress(false);
+    }
+
+    /** Show or hide the directory-search progress spinner. */
+    private void showSearchProgress(boolean show) {
+        mSearchProgress.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     private void checkHeaderViewVisibility() {
@@ -147,7 +158,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
         final ContactListFilter filter = getFilter();
         if (filter != null && !isSearchMode()) {
             final boolean shouldShowHeader = AccountFilterUtil.updateAccountFilterTitleForPeople(
-                    mAccountFilterHeader, filter, false, false);
+                    mAccountFilterHeader, filter, false);
             mAccountFilterHeader.setVisibility(shouldShowHeader ? View.VISIBLE : View.GONE);
         } else {
             mAccountFilterHeader.setVisibility(View.GONE);
@@ -200,19 +211,17 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
             // In search mode we only display the header if there is nothing found
             if (TextUtils.isEmpty(getQueryString()) || !adapter.areAllPartitionsEmpty()) {
                 mSearchHeaderView.setVisibility(View.GONE);
+                showSearchProgress(false);
             } else {
-                TextView textView = (TextView) mSearchHeaderView.findViewById(
-                        R.id.totalContactsText);
-                ProgressBar progress = (ProgressBar) mSearchHeaderView.findViewById(
-                        R.id.progress);
                 mSearchHeaderView.setVisibility(View.VISIBLE);
                 if (adapter.isLoading()) {
-                    textView.setText(R.string.search_results_searching);
-                    progress.setVisibility(View.VISIBLE);
+                    mSearchProgressText.setText(R.string.search_results_searching);
+                    showSearchProgress(true);
                 } else {
-                    textView.setText(R.string.listFoundAllContactsZero);
-                    textView.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED);
-                    progress.setVisibility(View.GONE);
+                    mSearchProgressText.setText(R.string.listFoundAllContactsZero);
+                    mSearchProgressText.sendAccessibilityEvent(
+                            AccessibilityEvent.TYPE_VIEW_SELECTED);
+                    showSearchProgress(false);
                 }
             }
             showEmptyUserProfile(false);
@@ -247,8 +256,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
         mProfileTitle.setVisibility(show ? View.VISIBLE : View.GONE);
         mMessageContainer.setVisibility(show ? View.VISIBLE : View.GONE);
         mProfileMessage.setVisibility(show ? View.VISIBLE : View.GONE);
-
-        mPaddingView.setVisibility(show ? View.GONE : View.VISIBLE);
     }
 
     /**
@@ -284,11 +291,5 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment 
                 startActivity(intent);
             }
         });
-
-        View paddingViewContainer =
-                inflater.inflate(R.layout.contact_detail_list_padding, null, false);
-        mPaddingView = paddingViewContainer.findViewById(R.id.contact_detail_list_padding);
-        mPaddingView.setVisibility(View.GONE);
-        getListView().addHeaderView(paddingViewContainer);
     }
 }

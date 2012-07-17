@@ -16,6 +16,7 @@
 package com.android.contacts.list;
 
 import com.android.contacts.R;
+import com.android.contacts.list.JoinContactLoader.JoinContactLoaderResult;
 
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
@@ -24,8 +25,10 @@ import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract.Contacts;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -76,13 +79,14 @@ public class JoinContactListFragment extends ContactEntryListFragment<JoinContac
                     break;
                 }
                 case JoinContactListAdapter.PARTITION_ALL_CONTACTS: {
-                    Cursor suggestionsCursor = ((JoinContactLoader) loader).getSuggestionsCursor();
+                    Cursor suggestionsCursor = ((JoinContactLoaderResult) data).suggestionCursor;
                     onContactListLoaded(suggestionsCursor, data);
                     break;
                 }
             }
         }
 
+        @Override
         public void onLoaderReset(Loader<Cursor> loader) {
         }
     };
@@ -103,7 +107,10 @@ public class JoinContactListFragment extends ContactEntryListFragment<JoinContac
         configureAdapter();
 
         getLoaderManager().initLoader(DISPLAY_NAME_LOADER, null, mLoaderCallbacks);
-        getLoaderManager().initLoader(JoinContactListAdapter.PARTITION_ALL_CONTACTS,
+
+        // When this method is called, Uri to be used may be changed. We should use restartLoader()
+        // to load the parameter again.
+        getLoaderManager().restartLoader(JoinContactListAdapter.PARTITION_ALL_CONTACTS,
                 null, mLoaderCallbacks);
     }
 
@@ -144,14 +151,14 @@ public class JoinContactListFragment extends ContactEntryListFragment<JoinContac
 
     @Override
     protected void onItemClick(int position, long id) {
-        JoinContactListAdapter adapter = getAdapter();
-        int partition = adapter.getPartitionForPosition(position);
-        mListener.onPickContactAction(adapter.getContactUri(position));
+        final Uri contactUri = getAdapter().getContactUri(position);
+        if (contactUri != null) mListener.onPickContactAction(contactUri);
     }
 
     @Override
     public void onPickerResult(Intent data) {
-        mListener.onPickContactAction(data.getData());
+        final Uri contactUri = data.getData();
+        if (contactUri != null) mListener.onPickContactAction(contactUri);
     }
 
     @Override
@@ -166,5 +173,12 @@ public class JoinContactListFragment extends ContactEntryListFragment<JoinContac
         if (savedState != null) {
             mTargetContactId = savedState.getLong(KEY_TARGET_CONTACT_ID);
         }
+    }
+
+    @Override
+    public void setQueryString(String queryString, boolean delaySelection) {
+        super.setQueryString(queryString, delaySelection);
+
+        setSearchMode(!TextUtils.isEmpty(queryString));
     }
 }

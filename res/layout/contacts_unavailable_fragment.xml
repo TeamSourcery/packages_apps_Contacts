@@ -16,13 +16,12 @@
 
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:ex="http://schemas.android.com/apk/res/com.android.contacts"
     android:layout_width="match_parent"
     android:fillViewport="true">
     <LinearLayout
         android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:background="@drawable/panel_message">
         <TextView
@@ -62,13 +61,12 @@
                 android:layout_marginBottom="15dip"
                 android:text="@string/contacts_unavailable_add_account" />
 
-            <!-- TODO: Use a string that says "Import" instead of "Import/export contacts"-->
             <Button
                 android:id="@+id/import_contacts_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="15dip"
-                android:text="@string/dialog_import_export" />
+                android:text="@string/contacts_unavailable_import_contacts" />
 
             <Button
                 android:id="@+id/import_failure_uninstall_button"

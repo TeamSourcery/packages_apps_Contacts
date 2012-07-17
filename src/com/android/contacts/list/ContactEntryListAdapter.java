@@ -18,7 +18,6 @@ package com.android.contacts.list;
 import com.android.contacts.ContactPhotoManager;
 import com.android.contacts.R;
 import com.android.contacts.widget.IndexerListAdapter;
-import com.android.contacts.widget.TextWithHighlightingFactory;
 
 import android.content.Context;
 import android.content.CursorLoader;
@@ -54,13 +53,8 @@ public abstract class ContactEntryListAdapter extends IndexerListAdapter {
      */
     private static final boolean LOCAL_INVISIBLE_DIRECTORY_ENABLED = false;
 
-    /**
-     * The animation is used here to allocate animated name text views.
-     */
-    private TextWithHighlightingFactory mTextWithHighlightingFactory;
     private int mDisplayOrder;
     private int mSortOrder;
-    private boolean mNameHighlightingEnabled;
 
     private boolean mDisplayPhotos;
     private boolean mQuickContactEnabled;
@@ -92,9 +86,17 @@ public abstract class ContactEntryListAdapter extends IndexerListAdapter {
     private String mContactsCount = "";
     private boolean mDarkTheme = false;
 
+    /** Resource used to provide header-text for default filter. */
+    private CharSequence mDefaultFilterHeaderText;
+
     public ContactEntryListAdapter(Context context) {
         super(context);
         addPartitions();
+        setDefaultFilterHeaderText(R.string.local_search_label);
+    }
+
+    protected void setDefaultFilterHeaderText(int resourceId) {
+        mDefaultFilterHeaderText = getContext().getResources().getText(resourceId);
     }
 
     @Override
@@ -134,6 +136,28 @@ public abstract class ContactEntryListAdapter extends IndexerListAdapter {
         partition.setPriorityDirectory(true);
         partition.setPhotoSupported(true);
         return partition;
+    }
+
+    /**
+     * Remove all directories after the default directory. This is typically used when contacts
+     * list screens are asked to exit the search mode and thus need to remove all remote directory
+     * results for the search.
+     *
+     * This code assumes that the default directory and directories before that should not be
+     * deleted (e.g. Join screen has "suggested contacts" directory before the default director,
+     * and we should not remove the directory).
+     */
+    /* package */ void removeDirectoriesAfterDefault() {
+        final int partitionCount = getPartitionCount();
+        for (int i = partitionCount - 1; i >= 0; i--) {
+            final Partition partition = getPartition(i);
+            if ((partition instanceof DirectoryPartition)
+                    && ((DirectoryPartition) partition).getDirectoryId() == Directory.DEFAULT) {
+                break;
+            } else {
+                removePartition(i);
+            }
+        }
     }
 
     private int getPartitionByDirectoryId(long id) {
@@ -516,7 +540,7 @@ public abstract class ContactEntryListAdapter extends IndexerListAdapter {
         TextView labelTextView = (TextView)view.findViewById(R.id.label);
         TextView displayNameTextView = (TextView)view.findViewById(R.id.display_name);
         if (directoryId == Directory.DEFAULT || directoryId == Directory.LOCAL_INVISIBLE) {
-            labelTextView.setText(R.string.local_search_label);
+            labelTextView.setText(mDefaultFilterHeaderText);
             displayNameTextView.setText(null);
         } else {
             labelTextView.setText(R.string.directory_search_label);
@@ -602,8 +626,16 @@ public abstract class ContactEntryListAdapter extends IndexerListAdapter {
 
     // TODO: move sharable logic (bindXX() methods) to here with extra arguments
 
+    /**
+     * Loads the photo for the quick contact view and assigns the contact uri.
+     * @param photoIdColumn Index of the photo id column
+     * @param photoUriColumn Index of the photo uri column. Optional: Can be -1
+     * @param contactIdColumn Index of the contact id column
+     * @param lookUpKeyColumn Index of the lookup key column
+     */
     protected void bindQuickContact(final ContactListItemView view, int partitionIndex,
-            Cursor cursor, int photoIdColumn, int contactIdColumn, int lookUpKeyColumn) {
+            Cursor cursor, int photoIdColumn, int photoUriColumn, int contactIdColumn,
+            int lookUpKeyColumn) {
         long photoId = 0;
         if (!cursor.isNull(photoIdColumn)) {
             photoId = cursor.getLong(photoIdColumn);
@@ -612,7 +644,15 @@ public abstract class ContactEntryListAdapter extends IndexerListAdapter {
         QuickContactBadge quickContact = view.getQuickContact();
         quickContact.assignContactUri(
                 getContactUri(partitionIndex, cursor, contactIdColumn, lookUpKeyColumn));
-        getPhotoLoader().loadPhoto(quickContact, photoId, false, mDarkTheme);
+
+        if (photoId != 0 || photoUriColumn == -1) {
+            getPhotoLoader().loadThumbnail(quickContact, photoId, mDarkTheme);
+        } else {
+            final String photoUriString = cursor.getString(photoUriColumn);
+            final Uri photoUri = photoUriString == null ? null : Uri.parse(photoUriString);
+            getPhotoLoader().loadPhoto(quickContact, photoUri, -1, mDarkTheme);
+        }
+
     }
 
     protected Uri getContactUri(int partitionIndex, Cursor cursor,

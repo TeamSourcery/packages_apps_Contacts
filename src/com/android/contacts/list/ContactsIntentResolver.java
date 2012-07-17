@@ -18,6 +18,7 @@ package com.android.contacts.list;
 
 import com.android.contacts.CallContactActivity;
 import com.android.contacts.ContactsSearchManager;
+import com.android.contacts.ContactsUtils;
 
 import android.app.Activity;
 import android.app.SearchManager;
@@ -33,6 +34,7 @@ import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.provider.ContactsContract.CommonDataKinds.StructuredPostal;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Intents;
+import android.provider.ContactsContract.Intents.Insert;
 import android.provider.ContactsContract.Intents.UI;
 import android.text.TextUtils;
 import android.util.Log;
@@ -124,16 +126,22 @@ public class ContactsIntentResolver {
         } else if (Intent.ACTION_INSERT_OR_EDIT.equals(action)) {
             request.setActionCode(ContactsRequest.ACTION_INSERT_OR_EDIT_CONTACT);
         } else if (Intent.ACTION_SEARCH.equals(action)) {
+            String query = intent.getStringExtra(SearchManager.QUERY);
             // See if the suggestion was clicked with a search action key (call button)
             if ("call".equals(intent.getStringExtra(SearchManager.ACTION_MSG))) {
-                String query = intent.getStringExtra(SearchManager.QUERY);
                 if (!TextUtils.isEmpty(query)) {
-                    Intent newIntent = new Intent(Intent.ACTION_CALL_PRIVILEGED,
-                            Uri.fromParts("tel", query, null));
-                    request.setRedirectIntent(newIntent);
+                    request.setRedirectIntent(ContactsUtils.getCallIntent(query));
                 }
             } else {
-                request.setQueryString(intent.getStringExtra(SearchManager.QUERY));
+                // If the {@link SearchManager.QUERY} is empty, then check if a phone number
+                // or email is specified, in that priority.
+                if (TextUtils.isEmpty(query)) {
+                    query = intent.getStringExtra(Insert.PHONE);
+                }
+                if (TextUtils.isEmpty(query)) {
+                    query = intent.getStringExtra(Insert.EMAIL);
+                }
+                request.setQueryString(query);
                 request.setSearchMode(true);
             }
         } else if (Intent.ACTION_VIEW.equals(action)) {
@@ -182,7 +190,7 @@ public class ContactsIntentResolver {
                 intent.setData(null);
             }
         } else if (Intents.SEARCH_SUGGESTION_DIAL_NUMBER_CLICKED.equals(action)) {
-            request.setRedirectIntent(new Intent(Intent.ACTION_CALL_PRIVILEGED, intent.getData()));
+            request.setRedirectIntent(ContactsUtils.getCallIntent(intent.getData()));
         } else if (Intents.SEARCH_SUGGESTION_CREATE_CONTACT_CLICKED.equals(action)) {
             // TODO actually support this in EditContactActivity.
             String number = intent.getData().getSchemeSpecificPart();

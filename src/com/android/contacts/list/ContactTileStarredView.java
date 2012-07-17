@@ -20,18 +20,22 @@ import android.util.AttributeSet;
 
 /**
  * A {@link ContactTileStarredView} displays the contact's picture overlayed with their name
- * in a square.  The actual dimensions are set by
+ * in a square. The actual dimensions are set by
  * {@link com.android.contacts.list.ContactTileAdapter.ContactTileRow}.
  */
 public class ContactTileStarredView extends ContactTileView {
-    private final static String TAG = ContactTileStarredView.class.getSimpleName();
-
     public ContactTileStarredView(Context context, AttributeSet attrs) {
         super(context, attrs);
     }
 
     @Override
-    protected boolean isDefaultIconHires() {
-        return true;
+    protected boolean isDarkTheme() {
+        return false;
+    }
+
+    @Override
+    protected int getApproximateImageSize() {
+        // The picture is the full size of the tile (minus some padding, but we can be generous)
+        return mListener.getApproximateTileWidth();
     }
 }

@@ -53,6 +53,7 @@ import android.provider.ContactsContract.Intents.Insert;
 import android.provider.ContactsContract.RawContacts;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import java.text.ParsePosition;
@@ -60,12 +61,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -103,19 +102,28 @@ public class EntityModifier {
     /**
      * Ensure that at least one of the given {@link DataKind} exists in the
      * given {@link EntityDelta} state, and try creating one if none exist.
+     * @return The child (either newly created or the first existing one), or null if the
+     *     account doesn't support this {@link DataKind}.
      */
-    public static void ensureKindExists(
+    public static ValuesDelta ensureKindExists(
             EntityDelta state, AccountType accountType, String mimeType) {
         final DataKind kind = accountType.getKindForMimetype(mimeType);
         final boolean hasChild = state.getMimeEntriesCount(mimeType, true) > 0;
 
-        if (!hasChild && kind != null) {
-            // Create child when none exists and valid kind
-            final ValuesDelta child = insertChild(state, kind);
-            if (kind.mimeType.equals(Photo.CONTENT_ITEM_TYPE)) {
-                child.setFromTemplate(true);
+        if (kind != null) {
+            if (hasChild) {
+                // Return the first entry.
+                return state.getMimeEntries(mimeType).get(0);
+            } else {
+                // Create child when none exists and valid kind
+                final ValuesDelta child = insertChild(state, kind);
+                if (kind.mimeType.equals(Photo.CONTENT_ITEM_TYPE)) {
+                    child.setFromTemplate(true);
+                }
+                return child;
             }
         }
+        return null;
     }
 
     /**
@@ -1228,7 +1236,7 @@ public class EntityModifier {
             return;
         }
 
-        final Map<Integer, EventEditType> allowedTypes = new HashMap<Integer, EventEditType>();
+        final SparseArray<EventEditType> allowedTypes = new SparseArray<EventEditType>();
         for (EditType editType : newDataKind.typeList) {
             allowedTypes.put(editType.rawValue, (EventEditType) editType);
         }
@@ -1239,7 +1247,8 @@ public class EntityModifier {
             }
             final String dateString = values.getAsString(Event.START_DATE);
             final Integer type = values.getAsInteger(Event.TYPE);
-            if (type != null && allowedTypes.containsKey(type) && !TextUtils.isEmpty(dateString)) {
+            if (type != null && (allowedTypes.indexOfKey(type) >= 0)
+                    && !TextUtils.isEmpty(dateString)) {
                 EventEditType suitableType = allowedTypes.get(type);
 
                 final ParsePosition position = new ParsePosition(0);
@@ -1323,7 +1332,7 @@ public class EntityModifier {
         }
         final Set<Integer> allowedTypes = new HashSet<Integer>();
         // key: type, value: the number of entries allowed for the type (specificMax)
-        final Map<Integer, Integer> typeSpecificMaxMap = new HashMap<Integer, Integer>();
+        final SparseIntArray typeSpecificMaxMap = new SparseIntArray();
         if (defaultType != null) {
             allowedTypes.add(defaultType);
             typeSpecificMaxMap.put(defaultType, -1);
@@ -1350,7 +1359,7 @@ public class EntityModifier {
         final int typeOverallMax = newDataKind.typeOverallMax;
 
         // key: type, value: the number of current entries.
-        final Map<Integer, Integer> currentEntryCount = new HashMap<Integer, Integer>();
+        final SparseIntArray currentEntryCount = new SparseIntArray();
         int totalCount = 0;
 
         for (ValuesDelta entry : mimeEntries) {
@@ -1381,11 +1390,9 @@ public class EntityModifier {
                 typeForNewAccount = oldType;
             }
             if (typeForNewAccount != null) {
-                final int specificMax = (typeSpecificMaxMap.containsKey(typeForNewAccount) ?
-                        typeSpecificMaxMap.get(typeForNewAccount) : 0);
+                final int specificMax = typeSpecificMaxMap.get(typeForNewAccount, 0);
                 if (specificMax >= 0) {
-                    final int currentCount = (currentEntryCount.get(typeForNewAccount) != null ?
-                            currentEntryCount.get(typeForNewAccount) : 0);
+                    final int currentCount = currentEntryCount.get(typeForNewAccount, 0);
                     if (currentCount >= specificMax) {
                         continue;
                     }

@@ -18,6 +18,7 @@ package com.android.contacts.tests.mocks;
 
 import com.android.contacts.ContactPhotoManager;
 
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.widget.ImageView;
 
@@ -27,15 +28,15 @@ import android.widget.ImageView;
  */
 public class MockContactPhotoManager extends ContactPhotoManager {
     @Override
-    public void loadPhoto(ImageView view, long photoId, boolean hires, boolean darkTheme,
+    public void loadThumbnail(ImageView view, long photoId, boolean darkTheme,
             DefaultImageProvider defaultProvider) {
-        defaultProvider.applyDefaultImage(view, hires, darkTheme);
+        defaultProvider.applyDefaultImage(view, -1, darkTheme);
     }
 
     @Override
-    public void loadPhoto(ImageView view, Uri photoUri, boolean hires, boolean darkTheme,
+    public void loadPhoto(ImageView view, Uri photoUri, int requestedExtent, boolean darkTheme,
             DefaultImageProvider defaultProvider) {
-        defaultProvider.applyDefaultImage(view, hires, darkTheme);
+        defaultProvider.applyDefaultImage(view, requestedExtent, darkTheme);
     }
 
     @Override
@@ -53,6 +54,10 @@ public class MockContactPhotoManager extends ContactPhotoManager {
 
     @Override
     public void refreshCache() {
+    }
+
+    @Override
+    public void cacheBitmap(Uri photoUri, Bitmap bitmap, byte[] photoBytes) {
     }
 
     @Override

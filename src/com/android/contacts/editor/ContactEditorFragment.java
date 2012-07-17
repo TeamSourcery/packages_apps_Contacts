@@ -23,6 +23,7 @@ import com.android.contacts.R;
 import com.android.contacts.activities.ContactEditorAccountsChangedActivity;
 import com.android.contacts.activities.ContactEditorActivity;
 import com.android.contacts.activities.JoinContactActivity;
+import com.android.contacts.detail.PhotoSelectionHandler;
 import com.android.contacts.editor.AggregationSuggestionEngine.Suggestion;
 import com.android.contacts.editor.Editor.EditorListener;
 import com.android.contacts.model.AccountType;
@@ -34,7 +35,9 @@ import com.android.contacts.model.EntityDeltaList;
 import com.android.contacts.model.EntityModifier;
 import com.android.contacts.model.GoogleAccountType;
 import com.android.contacts.util.AccountsListAdapter;
+import com.android.contacts.util.ContactPhotoUtils;
 import com.android.contacts.util.AccountsListAdapter.AccountListFilter;
+import com.android.contacts.util.HelpUtils;
 
 import android.accounts.Account;
 import android.app.Activity;
@@ -44,7 +47,6 @@ import android.app.DialogFragment;
 import android.app.Fragment;
 import android.app.LoaderManager;
 import android.app.LoaderManager.LoaderCallbacks;
-import android.content.ActivityNotFoundException;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
@@ -55,23 +57,20 @@ import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.Rect;
-import android.media.MediaScannerConnection;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.SystemClock;
 import android.provider.ContactsContract.CommonDataKinds.Email;
 import android.provider.ContactsContract.CommonDataKinds.Event;
 import android.provider.ContactsContract.CommonDataKinds.Organization;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
+import android.provider.ContactsContract.CommonDataKinds.Photo;
 import android.provider.ContactsContract.CommonDataKinds.StructuredPostal;
 import android.provider.ContactsContract.Contacts;
-import android.provider.ContactsContract.DisplayPhoto;
 import android.provider.ContactsContract.Groups;
 import android.provider.ContactsContract.Intents;
 import android.provider.ContactsContract.RawContacts;
-import android.provider.MediaStore;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -87,11 +86,9 @@ import android.widget.ListPopupWindow;
 import android.widget.Toast;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 
 public class ContactEditorFragment extends Fragment implements
@@ -117,6 +114,7 @@ public class ContactEditorFragment extends Fragment implements
     private static final String KEY_STATUS = "status";
     private static final String KEY_NEW_LOCAL_PROFILE = "newLocalProfile";
     private static final String KEY_IS_USER_PROFILE = "isUserProfile";
+    private static final String KEY_UPDATED_PHOTOS = "updatedPhotos";
 
     public static final String SAVE_MODE_EXTRA_KEY = "saveMode";
 
@@ -131,8 +129,6 @@ public class ContactEditorFragment extends Fragment implements
     /**
      * Modes that specify what the AsyncTask has to perform after saving
      */
-    // TODO: Move this into a common utils class or the save service because the contact and
-    // group editors need to use this interface definition
     public interface SaveMode {
         /**
          * Close the editor after saving
@@ -192,25 +188,29 @@ public class ContactEditorFragment extends Fragment implements
     }
 
     private static final int REQUEST_CODE_JOIN = 0;
-    private static final int REQUEST_CODE_CAMERA_WITH_DATA = 1;
-    private static final int REQUEST_CODE_PHOTO_PICKED_WITH_DATA = 2;
-    private static final int REQUEST_CODE_ACCOUNTS_CHANGED = 3;
+    private static final int REQUEST_CODE_ACCOUNTS_CHANGED = 1;
 
-    private Bitmap mPhoto = null;
-    private long mRawContactIdRequestingPhoto = -1;
-    private long mRawContactIdRequestingPhotoAfterLoad = -1;
+    /**
+     * The raw contact for which we started "take photo" or "choose photo from gallery" most
+     * recently.  Used to restore {@link #mCurrentPhotoHandler} after orientation change.
+     */
+    private long mRawContactIdRequestingPhoto;
+    /**
+     * The {@link PhotoHandler} for the photo editor for the {@link #mRawContactIdRequestingPhoto}
+     * raw contact.
+     *
+     * A {@link PhotoHandler} is created for each photo editor in {@link #bindPhotoHandler}, but
+     * the only "active" one should get the activity result.  This member represents the active
+     * one.
+     */
+    private PhotoHandler mCurrentPhotoHandler;
 
     private final EntityDeltaComparator mComparator = new EntityDeltaComparator();
 
-    private static final File PHOTO_DIR = new File(
-            Environment.getExternalStorageDirectory() + "/DCIM/Camera");
-
     private Cursor mGroupMetaData;
 
-    private File mCurrentPhotoFile;
-
-    // Height/width (in pixels) to request for the photo - queried from the provider.
-    private int mPhotoPickSize;
+    private String mCurrentPhotoFile;
+    private Bundle mUpdatedPhotos = new Bundle();
 
     private Context mContext;
     private String mAction;
@@ -322,7 +322,6 @@ public class ContactEditorFragment extends Fragment implements
         super.onAttach(activity);
         mContext = activity;
         mEditorUtils = ContactEditorUtils.getInstance(mContext);
-        loadPhotoPickSize();
     }
 
     @Override
@@ -425,10 +424,7 @@ public class ContactEditorFragment extends Fragment implements
             mRawContactIdRequestingPhoto = savedState.getLong(
                     KEY_RAW_CONTACT_ID_REQUESTING_PHOTO);
             mViewIdGenerator = savedState.getParcelable(KEY_VIEW_ID_GENERATOR);
-            String fileName = savedState.getString(KEY_CURRENT_PHOTO_FILE);
-            if (fileName != null) {
-                mCurrentPhotoFile = new File(fileName);
-            }
+            mCurrentPhotoFile = savedState.getString(KEY_CURRENT_PHOTO_FILE);
             mContactIdForJoin = savedState.getLong(KEY_CONTACT_ID_FOR_JOIN);
             mContactWritableForJoin = savedState.getBoolean(KEY_CONTACT_WRITABLE_FOR_JOIN);
             mAggregationSuggestionsRawContactId = savedState.getLong(KEY_SHOW_JOIN_SUGGESTIONS);
@@ -436,6 +432,7 @@ public class ContactEditorFragment extends Fragment implements
             mStatus = savedState.getInt(KEY_STATUS);
             mNewLocalProfile = savedState.getBoolean(KEY_NEW_LOCAL_PROFILE);
             mIsUserProfile = savedState.getBoolean(KEY_IS_USER_PROFILE);
+            mUpdatedPhotos = savedState.getParcelable(KEY_UPDATED_PHOTOS);
         }
     }
 
@@ -477,15 +474,15 @@ public class ContactEditorFragment extends Fragment implements
         mListener.onCustomEditContactActivityRequested(account, uri, null, false);
     }
 
-    private void bindEditorsForExistingContact(ContactLoader.Result data) {
+    private void bindEditorsForExistingContact(ContactLoader.Result contact) {
         setEnabled(true);
 
-        mState = EntityDeltaList.fromIterator(data.getEntities().iterator());
+        mState = contact.createEntityDeltaList();
         setIntentExtras(mIntentExtras);
         mIntentExtras = null;
 
         // For user profile, change the contacts query URI
-        mIsUserProfile = data.isUserProfile();
+        mIsUserProfile = contact.isUserProfile();
         boolean localProfileExists = false;
 
         if (mIsUserProfile) {
@@ -729,16 +726,26 @@ public class ContactEditorFragment extends Fragment implements
 
             editor.setState(entity, type, mViewIdGenerator, isEditingUserProfile());
 
-            editor.getPhotoEditor().setEditorListener(
-                    new PhotoEditorListener(editor, type.areContactsWritable()));
+            // Set up the photo handler.
+            bindPhotoHandler(editor, type, mState);
+
+            // If a new photo was chosen but not yet saved, we need to
+            // update the thumbnail to reflect this.
+            Bitmap bitmap = updatedBitmapForRawContact(rawContactId);
+            if (bitmap != null) editor.setPhotoBitmap(bitmap);
+
             if (editor instanceof RawContactEditorView) {
+                final Activity activity = getActivity();
                 final RawContactEditorView rawContactEditor = (RawContactEditorView) editor;
                 EditorListener listener = new EditorListener() {
 
                     @Override
                     public void onRequest(int request) {
+                        if (activity.isFinishing()) { // Make sure activity is still running.
+                            return;
+                        }
                         if (request == EditorListener.FIELD_CHANGED && !isEditingUserProfile()) {
-                            acquireAggregationSuggestions(rawContactEditor);
+                            acquireAggregationSuggestions(activity, rawContactEditor);
                         }
                     }
 
@@ -760,7 +767,7 @@ public class ContactEditorFragment extends Fragment implements
                 rawContactEditor.setAutoAddToDefaultGroup(mAutoAddToDefaultGroup);
 
                 if (rawContactId == mAggregationSuggestionsRawContactId) {
-                    acquireAggregationSuggestions(rawContactEditor);
+                    acquireAggregationSuggestions(activity, rawContactEditor);
                 }
             }
         }
@@ -776,7 +783,50 @@ public class ContactEditorFragment extends Fragment implements
         // Activity can be null if we have been detached from the Activity
         final Activity activity = getActivity();
         if (activity != null) activity.invalidateOptionsMenu();
+    }
 
+    /**
+     * If we've stashed a temporary file containing a contact's new photo,
+     * decode it and return the bitmap.
+     * @param rawContactId identifies the raw-contact whose Bitmap we'll try to return.
+     * @return Bitmap of photo for specified raw-contact, or null
+    */
+    private Bitmap updatedBitmapForRawContact(long rawContactId) {
+        String path = mUpdatedPhotos.getString(String.valueOf(rawContactId));
+        return BitmapFactory.decodeFile(path);
+    }
+
+    private void bindPhotoHandler(BaseRawContactEditorView editor, AccountType type,
+            EntityDeltaList state) {
+        final int mode;
+        if (type.areContactsWritable()) {
+            if (editor.hasSetPhoto()) {
+                if (hasMoreThanOnePhoto()) {
+                    mode = PhotoActionPopup.Modes.PHOTO_ALLOW_PRIMARY;
+                } else {
+                    mode = PhotoActionPopup.Modes.PHOTO_DISALLOW_PRIMARY;
+                }
+            } else {
+                mode = PhotoActionPopup.Modes.NO_PHOTO;
+            }
+        } else {
+            if (editor.hasSetPhoto() && hasMoreThanOnePhoto()) {
+                mode = PhotoActionPopup.Modes.READ_ONLY_ALLOW_PRIMARY;
+            } else {
+                // Read-only and either no photo or the only photo ==> no options
+                editor.getPhotoEditor().setEditorListener(null);
+                return;
+            }
+        }
+        final PhotoHandler photoHandler = new PhotoHandler(mContext, editor, mode, state);
+        editor.getPhotoEditor().setEditorListener(
+                (PhotoHandler.PhotoEditorListener) photoHandler.getListener());
+
+        // Note a newly created raw contact gets some random negative ID, so any value is valid
+        // here. (i.e. don't check against -1 or anything.)
+        if (mRawContactIdRequestingPhoto == editor.getRawContactId()) {
+            mCurrentPhotoHandler = photoHandler;
+        }
     }
 
     private void bindGroupMetaData() {
@@ -854,7 +904,7 @@ public class ContactEditorFragment extends Fragment implements
         // Remove the pressed state from the account header because the user cannot switch accounts
         // on an existing contact
         final View accountView = editor.findViewById(R.id.account);
-        accountView.setBackgroundDrawable(null);
+        accountView.setBackground(null);
         accountView.setEnabled(false);
     }
 
@@ -868,14 +918,31 @@ public class ContactEditorFragment extends Fragment implements
         // This supports the keyboard shortcut to save changes to a contact but shouldn't be visible
         // because the custom action bar contains the "save" button now (not the overflow menu).
         // TODO: Find a better way to handle shortcuts, i.e. onKeyDown()?
-        menu.findItem(R.id.menu_done).setVisible(false);
+        final MenuItem doneMenu = menu.findItem(R.id.menu_done);
+        final MenuItem splitMenu = menu.findItem(R.id.menu_split);
+        final MenuItem joinMenu = menu.findItem(R.id.menu_join);
+        final MenuItem helpMenu = menu.findItem(R.id.menu_help);
+
+        // Set visibility of menus
+        doneMenu.setVisible(false);
 
         // Split only if more than one raw profile and not a user profile
-        menu.findItem(R.id.menu_split).setVisible(mState != null && mState.size() > 1 &&
-                !isEditingUserProfile());
-        // Cannot join a user profile
-        menu.findItem(R.id.menu_join).setVisible(!isEditingUserProfile());
+        splitMenu.setVisible(mState != null && mState.size() > 1 && !isEditingUserProfile());
 
+        // Cannot join a user profile
+        joinMenu.setVisible(!isEditingUserProfile());
+
+        // help menu depending on whether this is inserting or editing
+        if (Intent.ACTION_INSERT.equals(mAction)) {
+            // inserting
+            HelpUtils.prepareHelpMenuItem(mContext, helpMenu, R.string.help_url_people_add);
+        } else if (Intent.ACTION_EDIT.equals(mAction)) {
+            // editing
+            HelpUtils.prepareHelpMenuItem(mContext, helpMenu, R.string.help_url_people_edit);
+        } else {
+            // something else, so don't show the help menu
+            helpMenu.setVisible(false);
+        }
 
         int size = menu.size();
         for (int i = 0; i < size; i++) {
@@ -915,41 +982,13 @@ public class ContactEditorFragment extends Fragment implements
 
         // If we just started creating a new contact and haven't added any data, it's too
         // early to do a join
-        final AccountTypeManager accountTypes = AccountTypeManager.getInstance(mContext);
-        if (mState.size() == 1 && mState.get(0).isContactInsert()
-                && !EntityModifier.hasChanges(mState, accountTypes)) {
-            Toast.makeText(getActivity(), R.string.toast_join_with_empty_contact,
+        if (mState.size() == 1 && mState.get(0).isContactInsert() && !hasPendingChanges()) {
+            Toast.makeText(mContext, R.string.toast_join_with_empty_contact,
                             Toast.LENGTH_LONG).show();
             return true;
         }
 
         return save(SaveMode.JOIN);
-    }
-
-    private void loadPhotoPickSize() {
-        Cursor c = mContext.getContentResolver().query(DisplayPhoto.CONTENT_MAX_DIMENSIONS_URI,
-                new String[]{DisplayPhoto.DISPLAY_MAX_DIM}, null, null, null);
-        try {
-            c.moveToFirst();
-            mPhotoPickSize = c.getInt(0);
-        } finally {
-            c.close();
-        }
-    }
-
-    /**
-     * Constructs an intent for picking a photo from Gallery, cropping it and returning the bitmap.
-     */
-    public Intent getPhotoPickIntent() {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT, null);
-        intent.setType("image/*");
-        intent.putExtra("crop", "true");
-        intent.putExtra("aspectX", 1);
-        intent.putExtra("aspectY", 1);
-        intent.putExtra("outputX", mPhotoPickSize);
-        intent.putExtra("outputY", mPhotoPickSize);
-        intent.putExtra("return-data", true);
-        return intent;
     }
 
     /**
@@ -961,58 +1000,12 @@ public class ContactEditorFragment extends Fragment implements
     }
 
     /**
-     * Create a file name for the icon photo using current time.
+     * Return true if there are any edits to the current contact which need to
+     * be saved.
      */
-    private String getPhotoFileName() {
-        Date date = new Date(System.currentTimeMillis());
-        SimpleDateFormat dateFormat = new SimpleDateFormat("'IMG'_yyyyMMdd_HHmmss");
-        return dateFormat.format(date) + ".jpg";
-    }
-
-    /**
-     * Constructs an intent for capturing a photo and storing it in a temporary file.
-     */
-    public static Intent getTakePickIntent(File f) {
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE, null);
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(f));
-        return intent;
-    }
-
-    /**
-     * Sends a newly acquired photo to Gallery for cropping
-     */
-    protected void doCropPhoto(File f) {
-        try {
-            // Add the image to the media store
-            MediaScannerConnection.scanFile(
-                    mContext,
-                    new String[] { f.getAbsolutePath() },
-                    new String[] { null },
-                    null);
-
-            // Launch gallery to crop the photo
-            final Intent intent = getCropImageIntent(Uri.fromFile(f));
-            mStatus = Status.SUB_ACTIVITY;
-            startActivityForResult(intent, REQUEST_CODE_PHOTO_PICKED_WITH_DATA);
-        } catch (Exception e) {
-            Log.e(TAG, "Cannot crop image", e);
-            Toast.makeText(mContext, R.string.photoPickerNotFoundText, Toast.LENGTH_LONG).show();
-        }
-    }
-
-    /**
-     * Constructs an intent for image cropping.
-     */
-    public Intent getCropImageIntent(Uri photoUri) {
-        Intent intent = new Intent("com.android.camera.action.CROP");
-        intent.setDataAndType(photoUri, "image/*");
-        intent.putExtra("crop", "true");
-        intent.putExtra("aspectX", 1);
-        intent.putExtra("aspectY", 1);
-        intent.putExtra("outputX", mPhotoPickSize);
-        intent.putExtra("outputY", mPhotoPickSize);
-        intent.putExtra("return-data", true);
-        return intent;
+    private boolean hasPendingChanges() {
+        final AccountTypeManager accountTypes = AccountTypeManager.getInstance(mContext);
+        return EntityModifier.hasChanges(mState, accountTypes);
     }
 
     /**
@@ -1031,8 +1024,13 @@ public class ContactEditorFragment extends Fragment implements
 
         mStatus = Status.SAVING;
 
-        final AccountTypeManager accountTypes = AccountTypeManager.getInstance(mContext);
-        if (!EntityModifier.hasChanges(mState, accountTypes)) {
+        if (!hasPendingChanges()) {
+            if (mLookupUri == null && saveMode == SaveMode.RELOAD) {
+                // We don't have anything to save and there isn't even an existing contact yet.
+                // Nothing to do, simply go back to editing mode
+                mStatus = Status.EDITING;
+                return true;
+            }
             onSaveCompleted(false, saveMode, mLookupUri != null, mLookupUri);
             return true;
         }
@@ -1043,10 +1041,15 @@ public class ContactEditorFragment extends Fragment implements
         saveDefaultAccountIfNecessary();
 
         // Save contact
-        Intent intent = ContactSaveService.createSaveContactIntent(getActivity(), mState,
+        Intent intent = ContactSaveService.createSaveContactIntent(mContext, mState,
                 SAVE_MODE_EXTRA_KEY, saveMode, isEditingUserProfile(),
-                getActivity().getClass(), ContactEditorActivity.ACTION_SAVE_COMPLETED);
-        getActivity().startService(intent);
+                ((Activity)mContext).getClass(), ContactEditorActivity.ACTION_SAVE_COMPLETED,
+                mUpdatedPhotos);
+        mContext.startService(intent);
+
+        // Don't try to save the same photos twice.
+        mUpdatedPhotos = new Bundle();
+
         return true;
     }
 
@@ -1062,12 +1065,11 @@ public class ContactEditorFragment extends Fragment implements
         public Dialog onCreateDialog(Bundle savedInstanceState) {
             AlertDialog dialog = new AlertDialog.Builder(getActivity())
                     .setIconAttribute(android.R.attr.alertDialogIcon)
-                    .setTitle(R.string.cancel_confirmation_dialog_title)
                     .setMessage(R.string.cancel_confirmation_dialog_message)
                     .setPositiveButton(android.R.string.ok,
                         new DialogInterface.OnClickListener() {
                             @Override
-                            public void onClick(DialogInterface dialog, int whichButton) {
+                            public void onClick(DialogInterface dialogInterface, int whichButton) {
                                 ((ContactEditorFragment)getTargetFragment()).doRevertAction();
                             }
                         }
@@ -1079,8 +1081,7 @@ public class ContactEditorFragment extends Fragment implements
     }
 
     private boolean revert() {
-        final AccountTypeManager accountTypes = AccountTypeManager.getInstance(mContext);
-        if (mState == null || !EntityModifier.hasChanges(mState, accountTypes)) {
+        if (mState == null || !hasPendingChanges()) {
             doRevertAction();
         } else {
             CancelEditDialogFragment.show(this);
@@ -1104,7 +1105,6 @@ public class ContactEditorFragment extends Fragment implements
 
     public void onSaveCompleted(boolean hadChanges, int saveMode, boolean saveSucceeded,
             Uri contactLookupUri) {
-        Log.d(TAG, "onSaveCompleted(" + saveMode + ", " + contactLookupUri);
         if (hadChanges) {
             if (saveSucceeded) {
                 if (saveMode != SaveMode.JOIN) {
@@ -1375,7 +1375,8 @@ public class ContactEditorFragment extends Fragment implements
     /**
      * Triggers an asynchronous search for aggregation suggestions.
      */
-    public void acquireAggregationSuggestions(RawContactEditorView rawContactEditor) {
+    private void acquireAggregationSuggestions(Context context,
+            RawContactEditorView rawContactEditor) {
         long rawContactId = rawContactEditor.getRawContactId();
         if (mAggregationSuggestionsRawContactId != rawContactId
                 && mAggregationSuggestionView != null) {
@@ -1387,7 +1388,7 @@ public class ContactEditorFragment extends Fragment implements
         mAggregationSuggestionsRawContactId = rawContactId;
 
         if (mAggregationSuggestionEngine == null) {
-            mAggregationSuggestionEngine = new AggregationSuggestionEngine(getActivity());
+            mAggregationSuggestionEngine = new AggregationSuggestionEngine(context);
             mAggregationSuggestionEngine.setListener(this);
             mAggregationSuggestionEngine.start();
         }
@@ -1422,7 +1423,6 @@ public class ContactEditorFragment extends Fragment implements
         mAggregationSuggestionPopup.setAnchorView(anchorView);
         mAggregationSuggestionPopup.setWidth(anchorView.getWidth());
         mAggregationSuggestionPopup.setInputMethodMode(ListPopupWindow.INPUT_METHOD_NOT_NEEDED);
-        mAggregationSuggestionPopup.setModal(true);
         mAggregationSuggestionPopup.setAdapter(
                 new AggregationSuggestionAdapter(getActivity(),
                         mState.size() == 1 && mState.get(0).isContactInsert(),
@@ -1456,10 +1456,10 @@ public class ContactEditorFragment extends Fragment implements
         public Dialog onCreateDialog(Bundle savedInstanceState) {
             return new AlertDialog.Builder(getActivity())
                     .setIconAttribute(android.R.attr.alertDialogIcon)
-                    .setTitle(R.string.aggregation_suggestion_join_dialog_title)
                     .setMessage(R.string.aggregation_suggestion_join_dialog_message)
                     .setPositiveButton(android.R.string.yes,
                         new DialogInterface.OnClickListener() {
+                            @Override
                             public void onClick(DialogInterface dialog, int whichButton) {
                                 ContactEditorFragment targetFragment =
                                         (ContactEditorFragment) getTargetFragment();
@@ -1504,10 +1504,10 @@ public class ContactEditorFragment extends Fragment implements
         public Dialog onCreateDialog(Bundle savedInstanceState) {
             return new AlertDialog.Builder(getActivity())
                     .setIconAttribute(android.R.attr.alertDialogIcon)
-                    .setTitle(R.string.aggregation_suggestion_edit_dialog_title)
                     .setMessage(R.string.aggregation_suggestion_edit_dialog_message)
                     .setPositiveButton(android.R.string.yes,
                         new DialogInterface.OnClickListener() {
+                            @Override
                             public void onClick(DialogInterface dialog, int whichButton) {
                                 ContactEditorFragment targetFragment =
                                         (ContactEditorFragment) getTargetFragment();
@@ -1548,21 +1548,6 @@ public class ContactEditorFragment extends Fragment implements
         }
     }
 
-    /**
-     * Computes bounds of the supplied view relative to its ascendant.
-     */
-    private Rect getRelativeBounds(View ascendant, View view) {
-        Rect rect = new Rect();
-        rect.set(view.getLeft(), view.getTop(), view.getRight(), view.getBottom());
-
-        View parent = (View) view.getParent();
-        while (parent != ascendant) {
-            rect.offset(parent.getLeft(), parent.getTop());
-            parent = (View) parent.getParent();
-        }
-        return rect;
-    }
-
     @Override
     public void onSaveInstanceState(Bundle outState) {
         outState.putParcelable(KEY_URI, mLookupUri);
@@ -1572,12 +1557,9 @@ public class ContactEditorFragment extends Fragment implements
             // Store entities with modifications
             outState.putParcelable(KEY_EDIT_STATE, mState);
         }
-
         outState.putLong(KEY_RAW_CONTACT_ID_REQUESTING_PHOTO, mRawContactIdRequestingPhoto);
         outState.putParcelable(KEY_VIEW_ID_GENERATOR, mViewIdGenerator);
-        if (mCurrentPhotoFile != null) {
-            outState.putString(KEY_CURRENT_PHOTO_FILE, mCurrentPhotoFile.toString());
-        }
+        outState.putString(KEY_CURRENT_PHOTO_FILE, mCurrentPhotoFile);
         outState.putLong(KEY_CONTACT_ID_FOR_JOIN, mContactIdForJoin);
         outState.putBoolean(KEY_CONTACT_WRITABLE_FOR_JOIN, mContactWritableForJoin);
         outState.putLong(KEY_SHOW_JOIN_SUGGESTIONS, mAggregationSuggestionsRawContactId);
@@ -1585,6 +1567,8 @@ public class ContactEditorFragment extends Fragment implements
         outState.putBoolean(KEY_NEW_LOCAL_PROFILE, mNewLocalProfile);
         outState.putBoolean(KEY_IS_USER_PROFILE, mIsUserProfile);
         outState.putInt(KEY_STATUS, mStatus);
+        outState.putParcelable(KEY_UPDATED_PHOTOS, mUpdatedPhotos);
+
         super.onSaveInstanceState(outState);
     }
 
@@ -1594,27 +1578,13 @@ public class ContactEditorFragment extends Fragment implements
             mStatus = Status.EDITING;
         }
 
-        switch (requestCode) {
-            case REQUEST_CODE_PHOTO_PICKED_WITH_DATA: {
-                // Ignore failed requests
-                if (resultCode != Activity.RESULT_OK) return;
-                // As we are coming back to this view, the editor will be reloaded automatically,
-                // which will cause the photo that is set here to disappear. To prevent this,
-                // we remember to set a flag which is interpreted after loading.
-                // This photo is set here already to reduce flickering.
-                mPhoto = data.getParcelableExtra("data");
-                setPhoto(mRawContactIdRequestingPhoto, mPhoto);
-                mRawContactIdRequestingPhotoAfterLoad = mRawContactIdRequestingPhoto;
-                mRawContactIdRequestingPhoto = -1;
+        // See if the photo selection handler handles this result.
+        if (mCurrentPhotoHandler != null && mCurrentPhotoHandler.handlePhotoActivityResult(
+                requestCode, resultCode, data)) {
+            return;
+        }
 
-                break;
-            }
-            case REQUEST_CODE_CAMERA_WITH_DATA: {
-                // Ignore failed requests
-                if (resultCode != Activity.RESULT_OK) return;
-                doCropPhoto(mCurrentPhotoFile);
-                break;
-            }
+        switch (requestCode) {
             case REQUEST_CODE_JOIN: {
                 // Ignore failed requests
                 if (resultCode != Activity.RESULT_OK) return;
@@ -1650,13 +1620,23 @@ public class ContactEditorFragment extends Fragment implements
     /**
      * Sets the photo stored in mPhoto and writes it to the RawContact with the given id
      */
-    private void setPhoto(long rawContact, Bitmap photo) {
+    private void setPhoto(long rawContact, Bitmap photo, String photoFile) {
         BaseRawContactEditorView requestingEditor = getRawContactEditorView(rawContact);
+
+        if (photo == null || photo.getHeight() < 0 || photo.getWidth() < 0) {
+            // This is unexpected.
+            Log.w(TAG, "Invalid bitmap passed to setPhoto()");
+        }
+
         if (requestingEditor != null) {
             requestingEditor.setPhotoBitmap(photo);
         } else {
             Log.w(TAG, "The contact that requested the photo is no longer present.");
         }
+
+        final String croppedPhotoPath =
+                ContactPhotoUtils.pathForCroppedPhoto(mContext, mCurrentPhotoFile);
+        mUpdatedPhotos.putString(String.valueOf(rawContact), croppedPhotoPath);
     }
 
     /**
@@ -1679,19 +1659,31 @@ public class ContactEditorFragment extends Fragment implements
      * Returns true if there is currently more than one photo on screen.
      */
     private boolean hasMoreThanOnePhoto() {
-        int count = mContent.getChildCount();
         int countWithPicture = 0;
-        for (int i = 0; i < count; i++) {
-            final View childView = mContent.getChildAt(i);
-            if (childView instanceof BaseRawContactEditorView) {
-                final BaseRawContactEditorView editor = (BaseRawContactEditorView) childView;
-                if (editor.hasSetPhoto()) {
+        final int numEntities = mState.size();
+        for (int i = 0; i < numEntities; i++) {
+            final EntityDelta entity = mState.get(i);
+            final ValuesDelta values = entity.getValues();
+            if (values.isVisible()) {
+                final ValuesDelta primary = entity.getPrimaryEntry(Photo.CONTENT_ITEM_TYPE);
+                if (primary != null && primary.getAsByteArray(Photo.PHOTO) != null) {
                     countWithPicture++;
-                    if (countWithPicture > 1) return true;
+                } else {
+                    final long rawContactId = values.getAsLong(RawContacts._ID);
+                    final String path = mUpdatedPhotos.getString(String.valueOf(rawContactId));
+                    if (path != null) {
+                        final File file = new File(path);
+                        if (file.exists()) {
+                            countWithPicture++;
+                        }
+                    }
+                }
+
+                if (countWithPicture > 1) {
+                    return true;
                 }
             }
         }
-
         return false;
     }
 
@@ -1703,7 +1695,7 @@ public class ContactEditorFragment extends Fragment implements
         @Override
         public Loader<ContactLoader.Result> onCreateLoader(int id, Bundle args) {
             mLoaderStartTime = SystemClock.elapsedRealtime();
-            return new ContactLoader(mContext, mLookupUri);
+            return new ContactLoader(mContext, mLookupUri, true);
         }
 
         @Override
@@ -1723,12 +1715,6 @@ public class ContactEditorFragment extends Fragment implements
             setData(data);
             final long setDataEndTime = SystemClock.elapsedRealtime();
 
-            // If we are coming back from the photo trimmer, this will be set.
-            if (mRawContactIdRequestingPhotoAfterLoad != -1) {
-                setPhoto(mRawContactIdRequestingPhotoAfterLoad, mPhoto);
-                mRawContactIdRequestingPhotoAfterLoad = -1;
-                mPhoto = null;
-            }
             Log.v(TAG, "Time needed for setting UI: " + (setDataEndTime-setDataStartTime));
         }
 
@@ -1754,6 +1740,7 @@ public class ContactEditorFragment extends Fragment implements
             bindGroupMetaData();
         }
 
+        @Override
         public void onLoaderReset(Loader<Cursor> loader) {
         }
     };
@@ -1773,111 +1760,104 @@ public class ContactEditorFragment extends Fragment implements
         save(SaveMode.SPLIT);
     }
 
-    private final class PhotoEditorListener
-            implements EditorListener, PhotoActionPopup.Listener {
+    /**
+     * Custom photo handler for the editor.  The inner listener that this creates also has a
+     * reference to the editor and acts as an {@link EditorListener}, and uses that editor to hold
+     * state information in several of the listener methods.
+     */
+    private final class PhotoHandler extends PhotoSelectionHandler {
+
+        final long mRawContactId;
         private final BaseRawContactEditorView mEditor;
-        private final boolean mAccountWritable;
+        private final PhotoActionListener mPhotoEditorListener;
 
-        private PhotoEditorListener(BaseRawContactEditorView editor, boolean accountWritable) {
+        public PhotoHandler(Context context, BaseRawContactEditorView editor, int photoMode,
+                EntityDeltaList state) {
+            super(context, editor.getPhotoEditor(), photoMode, false, state);
             mEditor = editor;
-            mAccountWritable = accountWritable;
+            mRawContactId = editor.getRawContactId();
+            mPhotoEditorListener = new PhotoEditorListener();
         }
 
         @Override
-        public void onRequest(int request) {
-            if (!hasValidState()) return;
-
-            if (request == EditorListener.REQUEST_PICK_PHOTO) {
-                // Determine mode
-                final int mode;
-                if (mAccountWritable) {
-                    if (mEditor.hasSetPhoto()) {
-                        if (hasMoreThanOnePhoto()) {
-                            mode = PhotoActionPopup.MODE_PHOTO_ALLOW_PRIMARY;
-                        } else {
-                            mode = PhotoActionPopup.MODE_PHOTO_DISALLOW_PRIMARY;
-                        }
-                    } else {
-                        mode = PhotoActionPopup.MODE_NO_PHOTO;
-                    }
-                } else {
-                    if (mEditor.hasSetPhoto() && hasMoreThanOnePhoto()) {
-                        mode = PhotoActionPopup.MODE_READ_ONLY_ALLOW_PRIMARY;
-                    } else {
-                        // Read-only and either no photo or the only photo ==> no options
-                        return;
-                    }
-                }
-                PhotoActionPopup.createPopupMenu(mContext, mEditor.getPhotoEditor(), this, mode)
-                        .show();
-            }
+        public PhotoActionListener getListener() {
+            return mPhotoEditorListener;
         }
 
         @Override
-        public void onDeleteRequested(Editor removedEditor) {
-            // The picture cannot be deleted, it can only be removed, which is handled by
-            // onRemovePictureChosen()
+        public void startPhotoActivity(Intent intent, int requestCode, String photoFile) {
+            mRawContactIdRequestingPhoto = mEditor.getRawContactId();
+            mCurrentPhotoHandler = this;
+            mStatus = Status.SUB_ACTIVITY;
+            mCurrentPhotoFile = photoFile;
+            ContactEditorFragment.this.startActivityForResult(intent, requestCode);
         }
 
-        /**
-         * User has chosen to set the selected photo as the (super) primary photo
-         */
-        @Override
-        public void onUseAsPrimaryChosen() {
-            // Set the IsSuperPrimary for each editor
-            int count = mContent.getChildCount();
-            for (int i = 0; i < count; i++) {
-                final View childView = mContent.getChildAt(i);
-                if (childView instanceof BaseRawContactEditorView) {
-                    final BaseRawContactEditorView editor = (BaseRawContactEditorView) childView;
-                    final PhotoEditorView photoEditor = editor.getPhotoEditor();
-                    photoEditor.setSuperPrimary(editor == mEditor);
+        private final class PhotoEditorListener extends PhotoSelectionHandler.PhotoActionListener
+                implements EditorListener {
+
+            @Override
+            public void onRequest(int request) {
+                if (!hasValidState()) return;
+
+                if (request == EditorListener.REQUEST_PICK_PHOTO) {
+                    onClick(mEditor.getPhotoEditor());
                 }
             }
-        }
 
-        /**
-         * User has chosen to remove a picture
-         */
-        @Override
-        public void onRemovePictureChosen() {
-            mEditor.setPhotoBitmap(null);
-        }
-
-        /**
-         * Launches Camera to take a picture and store it in a file.
-         */
-        @Override
-        public void onTakePhotoChosen() {
-            mRawContactIdRequestingPhoto = mEditor.getRawContactId();
-            try {
-                // Launch camera to take photo for selected contact
-                PHOTO_DIR.mkdirs();
-                mCurrentPhotoFile = new File(PHOTO_DIR, getPhotoFileName());
-                final Intent intent = getTakePickIntent(mCurrentPhotoFile);
-
-                mStatus = Status.SUB_ACTIVITY;
-                startActivityForResult(intent, REQUEST_CODE_CAMERA_WITH_DATA);
-            } catch (ActivityNotFoundException e) {
-                Toast.makeText(mContext, R.string.photoPickerNotFoundText,
-                        Toast.LENGTH_LONG).show();
+            @Override
+            public void onDeleteRequested(Editor removedEditor) {
+                // The picture cannot be deleted, it can only be removed, which is handled by
+                // onRemovePictureChosen()
             }
-        }
 
-        /**
-         * Launches Gallery to pick a photo.
-         */
-        @Override
-        public void onPickFromGalleryChosen() {
-            mRawContactIdRequestingPhoto = mEditor.getRawContactId();
-            try {
-                // Launch picker to choose photo for selected contact
-                final Intent intent = getPhotoPickIntent();
-                mStatus = Status.SUB_ACTIVITY;
-                startActivityForResult(intent, REQUEST_CODE_PHOTO_PICKED_WITH_DATA);
-            } catch (ActivityNotFoundException e) {
-                Toast.makeText(mContext, R.string.photoPickerNotFoundText,
-                        Toast.LENGTH_LONG).show();
+            /**
+             * User has chosen to set the selected photo as the (super) primary photo
+             */
+            @Override
+            public void onUseAsPrimaryChosen() {
+                // Set the IsSuperPrimary for each editor
+                int count = mContent.getChildCount();
+                for (int i = 0; i < count; i++) {
+                    final View childView = mContent.getChildAt(i);
+                    if (childView instanceof BaseRawContactEditorView) {
+                        final BaseRawContactEditorView editor =
+                                (BaseRawContactEditorView) childView;
+                        final PhotoEditorView photoEditor = editor.getPhotoEditor();
+                        photoEditor.setSuperPrimary(editor == mEditor);
+                    }
+                }
+                bindEditors();
+            }
+
+            /**
+             * User has chosen to remove a picture
+             */
+            @Override
+            public void onRemovePictureChosen() {
+                mEditor.setPhotoBitmap(null);
+
+                // Prevent bitmap from being restored if rotate the device.
+                // (only if we first chose a new photo before removing it)
+                mUpdatedPhotos.remove(String.valueOf(mRawContactId));
+                bindEditors();
+            }
+
+            @Override
+            public void onPhotoSelected(Bitmap bitmap) {
+                setPhoto(mRawContactId, bitmap, mCurrentPhotoFile);
+                mCurrentPhotoHandler = null;
+                bindEditors();
+            }
+
+            @Override
+            public String getCurrentPhotoFile() {
+                return mCurrentPhotoFile;
+            }
+
+            @Override
+            public void onPhotoSelectionDismissed() {
+                // Nothing to do.
             }
         }
     }

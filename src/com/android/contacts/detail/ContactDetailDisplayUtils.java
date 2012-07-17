@@ -23,6 +23,7 @@ import com.android.contacts.R;
 import com.android.contacts.preference.ContactsPreferences;
 import com.android.contacts.util.ContactBadgeUtil;
 import com.android.contacts.util.HtmlUtils;
+import com.android.contacts.util.MoreMath;
 import com.android.contacts.util.StreamItemEntry;
 import com.android.contacts.util.StreamItemPhotoEntry;
 import com.google.common.annotations.VisibleForTesting;
@@ -36,8 +37,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Resources;
 import android.content.res.Resources.NotFoundException;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.provider.ContactsContract;
@@ -50,13 +49,10 @@ import android.text.Html.ImageGetter;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AccelerateInterpolator;
-import android.view.animation.AlphaAnimation;
-import android.widget.CheckBox;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -69,8 +65,6 @@ import java.util.List;
  */
 public class ContactDetailDisplayUtils {
     private static final String TAG = "ContactDetailDisplayUtils";
-
-    private static final int PHOTO_FADE_IN_ANIMATION_DURATION_MILLIS = 100;
 
     /**
      * Tag object used for stream item photos.
@@ -190,37 +184,41 @@ public class ContactDetailDisplayUtils {
     }
 
     /**
-     * Sets the contact photo to display in the given {@link ImageView}. If bitmap is null, the
-     * default placeholder image is shown.
+     * Sets the starred state of this contact.
      */
-    public static void setPhoto(Context context, Result contactData, ImageView photoView) {
-        if (contactData.isLoadingPhoto()) {
-            photoView.setImageBitmap(null);
-            return;
+    public static void configureStarredImageView(ImageView starredView, boolean isDirectoryEntry,
+            boolean isUserProfile, boolean isStarred) {
+        // Check if the starred state should be visible
+        if (!isDirectoryEntry && !isUserProfile) {
+            starredView.setVisibility(View.VISIBLE);
+            final int resId = isStarred
+                    ? R.drawable.btn_star_on_normal_holo_light
+                    : R.drawable.btn_star_off_normal_holo_light;
+            starredView.setImageResource(resId);
+            starredView.setTag(isStarred);
+            starredView.setContentDescription(starredView.getResources().getString(
+                    isStarred ? R.string.menu_removeStar : R.string.menu_addStar));
+        } else {
+            starredView.setVisibility(View.GONE);
         }
-        byte[] photo = contactData.getPhotoBinaryData();
-        Bitmap bitmap = photo != null ? BitmapFactory.decodeByteArray(photo, 0, photo.length)
-                : ContactBadgeUtil.loadDefaultAvatarPhoto(context, true, false);
-        boolean fadeIn = contactData.isDirectoryEntry();
-        if (photoView.getDrawable() == null && fadeIn) {
-            AlphaAnimation animation = new AlphaAnimation(0, 1);
-            animation.setDuration(PHOTO_FADE_IN_ANIMATION_DURATION_MILLIS);
-            animation.setInterpolator(new AccelerateInterpolator());
-            photoView.startAnimation(animation);
-        }
-        photoView.setImageBitmap(bitmap);
     }
 
     /**
      * Sets the starred state of this contact.
      */
-    public static void setStarred(Result contactData, CheckBox starredView) {
+    public static void configureStarredMenuItem(MenuItem starredMenuItem, boolean isDirectoryEntry,
+            boolean isUserProfile, boolean isStarred) {
         // Check if the starred state should be visible
-        if (!contactData.isDirectoryEntry() && !contactData.isUserProfile()) {
-            starredView.setVisibility(View.VISIBLE);
-            starredView.setChecked(contactData.getStarred());
+        if (!isDirectoryEntry && !isUserProfile) {
+            starredMenuItem.setVisible(true);
+            final int resId = isStarred
+                    ? R.drawable.btn_star_on_normal_holo_dark
+                    : R.drawable.btn_star_off_normal_holo_dark;
+            starredMenuItem.setIcon(resId);
+            starredMenuItem.setChecked(isStarred);
+            starredMenuItem.setTitle(isStarred ? R.string.menu_removeStar : R.string.menu_addStar);
         } else {
-            starredView.setVisibility(View.GONE);
+            starredMenuItem.setVisible(false);
         }
     }
 
@@ -249,7 +247,7 @@ public class ContactDetailDisplayUtils {
         setDataOrHideIfNone(snippet, statusView);
         if (photoUri != null) {
             ContactPhotoManager.getInstance(context).loadPhoto(
-                    statusPhotoView, Uri.parse(photoUri), true, false,
+                    statusPhotoView, Uri.parse(photoUri), -1, false,
                     ContactPhotoManager.DEFAULT_BLANK);
             statusPhotoView.setVisibility(View.VISIBLE);
         } else {
@@ -259,61 +257,76 @@ public class ContactDetailDisplayUtils {
 
     /** Creates the view that represents a stream item. */
     public static View createStreamItemView(LayoutInflater inflater, Context context,
-            StreamItemEntry streamItem, LinearLayout parent,
-            View.OnClickListener photoClickListener) {
-        View container = inflater.inflate(R.layout.stream_item_container, parent, false);
-        ViewGroup contentTable = (ViewGroup) container.findViewById(R.id.stream_item_content);
+            View convertView, StreamItemEntry streamItem, View.OnClickListener photoClickListener) {
 
-        ContactPhotoManager contactPhotoManager = ContactPhotoManager.getInstance(context);
-        List<StreamItemPhotoEntry> photos = streamItem.getPhotos();
+        // Try to recycle existing views.
+        final View container;
+        if (convertView != null) {
+            container = convertView;
+        } else {
+            container = inflater.inflate(R.layout.stream_item_container, null, false);
+        }
+
+        final ContactPhotoManager contactPhotoManager = ContactPhotoManager.getInstance(context);
+        final List<StreamItemPhotoEntry> photos = streamItem.getPhotos();
         final int photoCount = photos.size();
 
-        // This stream item only has text.
+        // Add the text part.
+        addStreamItemText(context, streamItem, container);
+
+        // Add images.
+        final ViewGroup imageRows = (ViewGroup) container.findViewById(R.id.stream_item_image_rows);
+
         if (photoCount == 0) {
-            View textOnlyContainer = inflater.inflate(R.layout.stream_item_row_text, contentTable,
-                    false);
-            addStreamItemText(context, streamItem, textOnlyContainer);
-            contentTable.addView(textOnlyContainer);
+            // This stream item only has text.
+            imageRows.setVisibility(View.GONE);
         } else {
-            // This stream item has text and photos. Process the photos, two at a time.
-            for (int index = 0; index < photoCount; index += 2) {
-                final StreamItemPhotoEntry firstPhoto = photos.get(index);
-                if (index + 1 < photoCount) {
-                    // Put in two photos, side by side.
-                    final StreamItemPhotoEntry secondPhoto = photos.get(index + 1);
-                    View photoContainer = inflater.inflate(R.layout.stream_item_row_two_images,
-                            contentTable, false);
-                    loadPhoto(contactPhotoManager, streamItem, firstPhoto, photoContainer,
-                            R.id.stream_item_first_image, photoClickListener);
-                    loadPhoto(contactPhotoManager, streamItem, secondPhoto, photoContainer,
-                            R.id.stream_item_second_image, photoClickListener);
-                    contentTable.addView(photoContainer);
-                } else {
-                    // Put in a single photo
-                    View photoContainer = inflater.inflate(
-                            R.layout.stream_item_row_one_image, contentTable, false);
-                    loadPhoto(contactPhotoManager, streamItem, firstPhoto, photoContainer,
-                            R.id.stream_item_first_image, photoClickListener);
-                    contentTable.addView(photoContainer);
+            // This stream item has text and photos.
+            imageRows.setVisibility(View.VISIBLE);
+
+            // Number of image rows needed, which is cailing(photoCount / 2)
+            final int numImageRows = (photoCount + 1) / 2;
+
+            // Actual image rows.
+            final int numOldImageRows = imageRows.getChildCount();
+
+            // Make sure we have enough stream_item_row_images.
+            if (numOldImageRows == numImageRows) {
+                // Great, we have the just enough number of rows...
+
+            } else if (numOldImageRows < numImageRows) {
+                // Need to add more image rows.
+                for (int i = numOldImageRows; i < numImageRows; i++) {
+                    View imageRow = inflater.inflate(R.layout.stream_item_row_images, imageRows,
+                            true);
+                }
+            } else {
+                // We have exceeding image rows.  Hide them.
+                for (int i = numImageRows; i < numOldImageRows; i++) {
+                    imageRows.getChildAt(i).setVisibility(View.GONE);
                 }
             }
 
-            // Add text, comments, and attribution if applicable
-            View textContainer = inflater.inflate(R.layout.stream_item_row_text, contentTable,
-                    false);
-            // Add extra padding between the text and the images
-            int extraVerticalPadding = context.getResources().getDimensionPixelSize(
-                    R.dimen.detail_update_section_between_items_vertical_padding);
-            textContainer.setPadding(textContainer.getPaddingLeft(),
-                    textContainer.getPaddingTop() + extraVerticalPadding,
-                    textContainer.getPaddingRight(),
-                    textContainer.getPaddingBottom());
-            addStreamItemText(context, streamItem, textContainer);
-            contentTable.addView(textContainer);
-        }
+            // Put images, two by two.
+            for (int i = 0; i < photoCount; i += 2) {
+                final View imageRow = imageRows.getChildAt(i / 2);
+                // Reused image rows may not visible, so make sure they're shown.
+                imageRow.setVisibility(View.VISIBLE);
 
-        if (parent != null) {
-            parent.addView(container);
+                // Show first image.
+                loadPhoto(contactPhotoManager, streamItem, photos.get(i), imageRow,
+                        R.id.stream_item_first_image, photoClickListener);
+                final View secondContainer = imageRow.findViewById(R.id.second_image_container);
+                if (i + 1 < photoCount) {
+                    // Show the second image too.
+                    loadPhoto(contactPhotoManager, streamItem, photos.get(i + 1), imageRow,
+                            R.id.stream_item_second_image, photoClickListener);
+                    secondContainer.setVisibility(View.VISIBLE);
+                } else {
+                    // Hide the second image, but it still has to occupy the space.
+                    secondContainer.setVisibility(View.INVISIBLE);
+                }
+            }
         }
 
         return container;
@@ -339,7 +352,7 @@ public class ContactDetailDisplayUtils {
             pushLayerView.setClickable(false);
             pushLayerView.setEnabled(false);
         }
-        contactPhotoManager.loadPhoto(imageView, Uri.parse(streamItemPhoto.getPhotoUri()), true,
+        contactPhotoManager.loadPhoto(imageView, Uri.parse(streamItemPhoto.getPhotoUri()), -1,
                 false, ContactPhotoManager.DEFAULT_BLANK);
     }
 
@@ -352,14 +365,12 @@ public class ContactDetailDisplayUtils {
         ImageGetter imageGetter = new DefaultImageGetter(context.getPackageManager());
 
         // Stream item text
-        setDataOrHideIfNone(HtmlUtils.fromHtml(context, streamItem.getText(), imageGetter, null),
-                htmlView);
+        setDataOrHideIfNone(streamItem.getDecodedText(), htmlView);
         // Attribution
         setDataOrHideIfNone(ContactBadgeUtil.getSocialDate(streamItem, context),
                 attributionView);
         // Comments
-        setDataOrHideIfNone(HtmlUtils.fromHtml(context, streamItem.getComments(), imageGetter,
-                null), commentsView);
+        setDataOrHideIfNone(streamItem.getDecodedComments(), commentsView);
         return rootView;
     }
 
@@ -419,6 +430,15 @@ public class ContactDetailDisplayUtils {
             textView.setText(null);
             textView.setVisibility(View.GONE);
         }
+    }
+
+    private static Html.ImageGetter sImageGetter;
+
+    public static Html.ImageGetter getImageGetter(Context context) {
+        if (sImageGetter == null) {
+            sImageGetter = new DefaultImageGetter(context.getPackageManager());
+        }
+        return sImageGetter;
     }
 
     /** Fetcher for images from resources to be included in HTML text. */
@@ -504,7 +524,7 @@ public class ContactDetailDisplayUtils {
         if (view != null) {
             // Convert alpha layer to a black background HEX color with an alpha value for better
             // performance (i.e. use setBackgroundColor() instead of setAlpha())
-            view.setBackgroundColor((int) (alpha * 255) << 24);
+            view.setBackgroundColor((int) (MoreMath.clamp(alpha, 0.0f, 1.0f) * 255) << 24);
         }
     }
 

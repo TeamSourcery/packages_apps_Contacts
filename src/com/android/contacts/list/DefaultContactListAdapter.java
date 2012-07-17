@@ -26,9 +26,7 @@ import android.net.Uri;
 import android.net.Uri.Builder;
 import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
-import android.provider.ContactsContract.CommonDataKinds.GroupMembership;
 import android.provider.ContactsContract.Contacts;
-import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.Directory;
 import android.provider.ContactsContract.RawContacts;
 import android.provider.ContactsContract.SearchSnippetColumns;
@@ -124,9 +122,13 @@ public class DefaultContactListAdapter extends ContactListAdapter {
         if (filter != null
                 && filter.filterType != ContactListFilter.FILTER_TYPE_CUSTOM
                 && filter.filterType != ContactListFilter.FILTER_TYPE_SINGLE_CONTACT) {
-            uri = uri.buildUpon().appendQueryParameter(
-                    ContactsContract.DIRECTORY_PARAM_KEY, String.valueOf(Directory.DEFAULT))
-                    .build();
+            final Uri.Builder builder = uri.buildUpon();
+            builder.appendQueryParameter(
+                    ContactsContract.DIRECTORY_PARAM_KEY, String.valueOf(Directory.DEFAULT));
+            if (filter.filterType == ContactListFilter.FILTER_TYPE_ACCOUNT) {
+                filter.addAccountQueryParameterToUrl(builder);
+            }
+            uri = builder.build();
         }
 
         loader.setUri(uri);
@@ -172,22 +174,7 @@ public class DefaultContactListAdapter extends ContactListAdapter {
                 break;
             }
             case ContactListFilter.FILTER_TYPE_ACCOUNT: {
-                // TODO: avoid the use of private API
-                selection.append(
-                        Contacts._ID + " IN ("
-                                + "SELECT DISTINCT " + RawContacts.CONTACT_ID
-                                + " FROM raw_contacts"
-                                + " WHERE " + RawContacts.ACCOUNT_TYPE + "=?"
-                                + " AND " + RawContacts.ACCOUNT_NAME + "=?");
-                selectionArgs.add(filter.accountType);
-                selectionArgs.add(filter.accountName);
-                if (filter.dataSet != null) {
-                    selection.append(" AND " + RawContacts.DATA_SET + "=?");
-                    selectionArgs.add(filter.dataSet);
-                } else {
-                    selection.append(" AND " + RawContacts.DATA_SET + " IS NULL");
-                }
-                selection.append(")");
+                // We use query parameters for account filter, so no selection to add here.
                 break;
             }
         }
@@ -209,9 +196,12 @@ public class DefaultContactListAdapter extends ContactListAdapter {
 
         if (isQuickContactEnabled()) {
             bindQuickContact(view, partition, cursor, ContactQuery.CONTACT_PHOTO_ID,
-                    ContactQuery.CONTACT_ID, ContactQuery.CONTACT_LOOKUP_KEY);
+                    ContactQuery.CONTACT_PHOTO_URI, ContactQuery.CONTACT_ID,
+                    ContactQuery.CONTACT_LOOKUP_KEY);
         } else {
-            bindPhoto(view, partition, cursor);
+            if (getDisplayPhotos()) {
+                bindPhoto(view, partition, cursor);
+            }
         }
 
         bindName(view, cursor);

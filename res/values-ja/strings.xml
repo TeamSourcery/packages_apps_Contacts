@@ -17,7 +17,7 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="launcherDialer" msgid="8636288196618486553">"電話"</string>
-    <string name="people" msgid="1048457247435785074">"ユーザー"</string>
+    <string name="people" msgid="1048457247435785074">"連絡帳"</string>
     <string name="contactsList" msgid="8661624236494819731">"連絡先"</string>
     <string name="shortcutContact" msgid="749243779392912958">"連絡先"</string>
     <string name="shortcutDialContact" msgid="746622101599186779">"直接発信"</string>
@@ -41,11 +41,13 @@
     <string name="menu_search" msgid="9147752853603483719">"検索"</string>
     <string name="menu_newContact" msgid="1209922412763274638">"連絡先を新規登録"</string>
     <string name="menu_viewContact" msgid="2795575601596468581">"連絡先詳細"</string>
-    <string name="menu_callNumber" msgid="5142851348489387516">"<xliff:g id="NAME">%s</xliff:g>に発信"</string>
+    <string name="menu_callNumber" msgid="997146291983360266">"<xliff:g id="NUMBER">%s</xliff:g>に発信"</string>
     <string name="menu_addStar" msgid="2908478235715404876">"お気に入りに追加"</string>
     <string name="menu_removeStar" msgid="5844227078364227030">"お気に入りから削除"</string>
     <string name="menu_editContact" msgid="9042415603857662633">"編集"</string>
     <string name="menu_deleteContact" msgid="6788644058868189393">"削除"</string>
+    <string name="menu_copy" msgid="6108677035381940698">"コピー"</string>
+    <string name="menu_create_contact_shortcut" msgid="1217971915748509640">"ホーム画面に配置"</string>
     <string name="menu_call" msgid="3992595586042260618">"連絡先に発信"</string>
     <string name="menu_sendSMS" msgid="5535886767547006515">"連絡先にSMS"</string>
     <string name="menu_splitAggregate" msgid="8368636463748691868">"分割"</string>
@@ -62,7 +64,6 @@
     <string name="separatorJoinAggregateSuggestions" msgid="2831414448851313345">"連絡先候補"</string>
     <string name="separatorJoinAggregateAll" msgid="7939932265026181043">"すべての連絡先"</string>
     <string name="contactsJoinedMessage" msgid="7208148163607047389">"連絡先を結合しました"</string>
-    <string name="deleteConfirmation_title" msgid="1418215926447642260">"連絡先を削除しますか？"</string>
     <string name="menu_set_ring_tone" msgid="8728345772068064946">"着信音を設定"</string>
     <string name="menu_redirect_calls_to_vm" msgid="4181789196416396656">"すべての通話をボイスメールへ"</string>
     <string name="readOnlyContactWarning" msgid="7808825687289848259">"読み取り専用アカウントの連絡先は削除できません。ただし、連絡先リストで非表示にすることができます。"</string>
@@ -77,6 +78,7 @@
     <string name="ghostData_company" msgid="5414421120553765775">"会社"</string>
     <string name="ghostData_title" msgid="7496735200318496110">"役職"</string>
     <string name="invalidContactMessage" msgid="8215051456181842274">"連絡先が存在しません。"</string>
+    <string name="createContactShortcutSuccessful" msgid="7874133287558150877">"ホーム画面に連絡先ウィジェットを追加しました。"</string>
     <string name="pickerNewContactHeader" msgid="7750705279843568147">"連絡先を新規登録"</string>
     <string name="pickerNewContactText" msgid="6166997164401048211">"新しい連絡先を作成"</string>
     <string name="phoneLabelsGroup" msgid="6468091477851199285">"電話番号"</string>
@@ -127,12 +129,12 @@
     <item quantity="other" msgid="3852668542926965042">"<xliff:g id="COUNT">%d</xliff:g>件見つかりました"</item>
   </plurals>
     <string name="foundTooManyContacts" msgid="5163335650920020220">"<xliff:g id="COUNT">%d</xliff:g>件以上見つかりました。"</string>
-    <string name="listFoundAllContactsZero" msgid="7132202364587656501">"何も見つかりませんでした。"</string>
+    <string name="listFoundAllContactsZero" msgid="922980883593159444">"連絡先はありません"</string>
   <plurals name="searchFoundContacts">
     <item quantity="one" msgid="4826918429708286628">"1件見つかりました"</item>
     <item quantity="other" msgid="7988132539476575389">"<xliff:g id="COUNT">%d</xliff:g>件見つかりました"</item>
   </plurals>
-    <string name="contactsAllLabel" msgid="6178225597569649305">"すべて"</string>
+    <string name="contactsAllLabel" msgid="6479708629170672169">"すべての連絡先"</string>
     <string name="contactsGroupsLabel" msgid="2841971472518003524">"グループ"</string>
     <string name="contactsFavoritesLabel" msgid="8417039765586853670">"お気入り"</string>
     <string name="dialerIconLabel" msgid="6500826552823403796">"電話"</string>
@@ -149,6 +151,9 @@
     <string name="clearCallLogConfirmation_title" msgid="6427524640461816332">"通話履歴を消しますか？"</string>
     <string name="clearCallLogConfirmation" msgid="5043563133171583152">"すべての通話記録は削除されます。"</string>
     <string name="clearCallLogProgress_title" msgid="8365943000154295771">"通話履歴を消去しています..."</string>
+    <string name="clearFrequentsConfirmation_title" msgid="766292372438450432">"よく使う連絡先をクリアしますか？"</string>
+    <string name="clearFrequentsConfirmation" msgid="3254215748990281318">"連絡帳アプリや電話アプリのよく使う連絡先リストをクリアし、メールアプリがアドレス設定を初めから保存していくようにします。"</string>
+    <string name="clearFrequentsProgress_title" msgid="5157001637482794212">"よく使う連絡先をクリアしています…"</string>
     <string name="imei" msgid="3045126336951684285">"IMEI（端末識別番号）"</string>
     <string name="meid" msgid="6210568493746275750">"MEID"</string>
     <string name="voicemail" msgid="3851469869202611441">"ボイスメール"</string>
@@ -186,7 +191,6 @@
     <string name="callDetailsDurationFormat" msgid="8157706382818184268">"<xliff:g id="MINUTES">%s</xliff:g>分<xliff:g id="SECONDS">%s</xliff:g>秒"</string>
     <string name="favoritesFrequentContacted" msgid="6184232487472425690">"よく使う連絡先"</string>
     <string name="favoritesFrequentCalled" msgid="6128306889600696124">"よく使う連絡先"</string>
-    <string name="add_contact_dlg_title" msgid="2896685845822146494">"連絡先を追加"</string>
     <string name="add_contact_dlg_message_fmt" msgid="7986472669444326576">"<xliff:g id="EMAIL">%s</xliff:g> を連絡先に追加しますか？"</string>
     <string name="description_image_button_one" msgid="1740638037139856139">"1"</string>
     <string name="description_image_button_two" msgid="5882638439003731308">"2"</string>
@@ -209,11 +213,8 @@
     <string name="description_minus_button" msgid="387136707700230172">"マイナス"</string>
     <string name="description_plus_button" msgid="515164827856229880">"プラス"</string>
     <string name="description_view_contact_detail" msgid="9133251213656414807">"連絡先を表示"</string>
-    <string name="no_sdcard_title" product="nosdcard" msgid="8543619259870877473">"ストレージ使用不可"</string>
-    <string name="no_sdcard_title" product="default" msgid="5911758680339949273">"SDカードがありません"</string>
     <string name="no_sdcard_message" product="nosdcard" msgid="5242558018442357189">"ストレージはありませんでした。"</string>
     <string name="no_sdcard_message" product="default" msgid="3357810406684913482">"SDカードが見つかりませんでした。"</string>
-    <string name="searching_vcard_title" msgid="4970508055399376813">"vCardを検索中"</string>
     <string name="import_from_sim" msgid="3859272228033941659">"SIMカードからインポート"</string>
     <string name="import_from_sdcard" product="default" msgid="8668347930577565175">"ストレージからインポート"</string>
     <string name="export_to_sdcard" product="default" msgid="6092815580965201089">"ストレージにエクスポート"</string>
@@ -223,8 +224,6 @@
     <string name="import_all_vcard_string" msgid="5518136113853448474">"すべてのvCardファイルをインポート"</string>
     <string name="searching_vcard_message" product="nosdcard" msgid="557077639409584945">"ストレージ内でvCardデータを検索しています..."</string>
     <string name="searching_vcard_message" product="default" msgid="3962269894118092049">"SDカードでvCardデータを検索しています..."</string>
-    <string name="scanning_sdcard_failed_title" product="nosdcard" msgid="4944932641334764942">"ストレージをスキャンできませんでした"</string>
-    <string name="scanning_sdcard_failed_title" product="default" msgid="6664940444476572612">"SDカードをスキャンできませんでした"</string>
     <string name="scanning_sdcard_failed_message" product="nosdcard" msgid="7221682312959229201">"ストレージをスキャンできませんでした（理由: 「<xliff:g id="FAIL_REASON">%s</xliff:g>」）。"</string>
     <string name="scanning_sdcard_failed_message" product="default" msgid="189023067829510792">"SDカードをスキャンできませんでした（理由: 「<xliff:g id="FAIL_REASON">%s</xliff:g>」）。"</string>
     <string name="fail_reason_io_error" msgid="6748358842976073255">"送受信エラー"</string>
@@ -252,7 +251,7 @@
     <string name="vcard_export_will_start_message" msgid="2210241345252081463">"<xliff:g id="FILENAME">%s</xliff:g>はまもなくエクスポートされます。"</string>
     <string name="vcard_export_request_rejected_message" msgid="2844874826431327531">"vCardのエクスポートリクエストは拒否されました。しばらくしてからもう一度お試しください。"</string>
     <string name="vcard_unknown_filename" msgid="7171709890959915954">"連絡先"</string>
-    <string name="percentage" msgid="34897865327092209">"%s%%"</string>
+    <string name="percentage" msgid="1044592438199055502">"<xliff:g id="PERCENTAGE">%s</xliff:g><xliff:g id="PERCENTSIGN">%%</xliff:g>"</string>
     <string name="confirm_export_title" msgid="6834385377255286349">"エクスポートしますか？"</string>
     <string name="confirm_export_message" msgid="2423421354816428708">"連絡先リストをファイル「<xliff:g id="VCARD_FILENAME">%s</xliff:g>」にエクスポートします。"</string>
     <string name="exporting_contact_failed_title" msgid="4892358112409576342">"エクスポート失敗"</string>
@@ -273,26 +272,25 @@
     <string name="composer_not_initialized" msgid="2321648986367005254">"vCardコンポーザーが正しく起動しませんでした。"</string>
     <string name="fail_reason_could_not_open_file" msgid="2067725459821997463">"「<xliff:g id="FILE_NAME">%s</xliff:g>」を開けませんでした: <xliff:g id="EXACT_REASON">%s</xliff:g>。"</string>
     <string name="exporting_contact_list_progress" msgid="560522409559101193">"<xliff:g id="CURRENT_NUMBER">%s</xliff:g>/<xliff:g id="TOTAL_NUMBER">%s</xliff:g>件のファイル"</string>
-    <string name="cancel_import_confirmation_title" msgid="5578683596010294836">"vCardインポートのキャンセル"</string>
     <string name="cancel_import_confirmation_message" msgid="3929951040347726757">"<xliff:g id="FILENAME">%s</xliff:g>のインポートをキャンセルしますか？"</string>
-    <string name="cancel_export_confirmation_title" msgid="6516467140276768528">"vCardエクスポートのキャンセル"</string>
     <string name="cancel_export_confirmation_message" msgid="1995462401949262638">"<xliff:g id="FILENAME">%s</xliff:g>のエクスポートをキャンセルしますか？"</string>
     <string name="cancel_vcard_import_or_export_failed" msgid="6139900383366166706">"vCardインポート/エクスポート取り消し不可"</string>
     <string name="search_settings_description" msgid="2675223022992445813">"連絡先の名前"</string>
     <string name="add_2sec_pause" msgid="9214012315201040129">"2秒間の停止を追加"</string>
     <string name="add_wait" msgid="3360818652790319634">"待機を追加"</string>
-    <string name="call_disambig_title" msgid="1911302597959335178">"使用している発信"</string>
+    <string name="call_disambig_title" msgid="4392886850104795739">"番号を選択"</string>
     <string name="call_settings" msgid="7666474782093693667">"設定"</string>
-    <string name="sms_disambig_title" msgid="4675399294513152364">"使用しているSMS"</string>
+    <string name="sms_disambig_title" msgid="5846266399240630846">"番号を選択"</string>
     <string name="make_primary" msgid="5829291915305113983">"この選択を保存"</string>
     <string name="quickcontact_missing_app" msgid="358168575340921552">"この操作を行うアプリが見つかりませんでした。"</string>
     <string name="missing_name" msgid="8745511583852904385">"（名前なし）"</string>
     <string name="menu_accounts" msgid="8499114602017077970">"アカウント"</string>
+    <string name="menu_clear_frequents" msgid="7688250191932838833">"よく使う連絡先のクリア"</string>
     <string name="menu_contacts_filter" msgid="2165153460860262501">"表示する連絡先"</string>
     <string name="menu_import_export" msgid="26217871113229507">"インポート/エクスポート"</string>
     <string name="dialog_import_export" msgid="4360648034889921624">"連絡先のインポート/エクスポート"</string>
+    <string name="dialog_import" msgid="2431698729761448759">"連絡先のインポート"</string>
     <string name="menu_share" msgid="943789700636542260">"共有"</string>
-    <string name="menu_all_contacts" msgid="5101735431586050711">"すべての連絡先"</string>
     <string name="share_via" msgid="563121028023030093">"連絡先の共有ツール"</string>
     <string name="share_error" msgid="948429331673358107">"この連絡先は共有できません。"</string>
     <string name="nameLabelsGroup" msgid="2034640839640477827">"名前"</string>
@@ -411,7 +409,6 @@
     <string name="display_options_view_names_as" msgid="18022868169627979">"名前の表示形式"</string>
     <string name="display_options_view_given_name_first" msgid="6968288511197363292">"名が先"</string>
     <string name="display_options_view_family_name_first" msgid="1447288164951453714">"姓が先"</string>
-    <string name="search_bar_hint" msgid="1012756309632856553">"連絡先を検索"</string>
     <string name="take_photo" msgid="7496128293167402354">"写真を撮影"</string>
     <string name="take_new_photo" msgid="7341354729436576304">"新しい写真を撮る"</string>
     <string name="pick_photo" msgid="3746334626214970837">"ギャラリーから画像を選ぶ"</string>
@@ -441,9 +438,7 @@
     <item quantity="other" msgid="425683718017380845">"<xliff:g id="COUNT">%0$d</xliff:g>件の連絡先が結合されました"</item>
   </plurals>
     <string name="local_invisible_directory" msgid="6046691709127661065">"その他"</string>
-    <string name="aggregation_suggestion_join_dialog_title" msgid="5276699501316246253">"連絡先の統合"</string>
     <string name="aggregation_suggestion_join_dialog_message" msgid="3842757977671434836">"現在の連絡先を選択した連絡先に統合しますか？"</string>
-    <string name="aggregation_suggestion_edit_dialog_title" msgid="1064042382692091314">"選択した連絡先の編集"</string>
     <string name="aggregation_suggestion_edit_dialog_message" msgid="6549585283910518095">"選択した連絡先の編集に切り替えますか？これまでに入力した情報はコピーされます。"</string>
     <string name="menu_copyContact" msgid="1573960845106822639">"Myコンタクトにコピー"</string>
     <string name="add_to_my_contacts" msgid="1068274916793627723">"Myコンタクトに追加"</string>
@@ -462,6 +457,7 @@
     <string name="activity_title_settings" msgid="5464130076132770781">"設定"</string>
     <string name="activity_title_contacts_filter" msgid="8275542497615516969">"表示する連絡先"</string>
     <string name="menu_settings" msgid="377929915873428211">"設定"</string>
+    <string name="menu_help" msgid="5123887102216637725">"ヘルプ"</string>
     <string name="preference_displayOptions" msgid="1341720270148252393">"表示オプション"</string>
     <string name="organization_company_and_title" msgid="6718207751363732025">"<xliff:g id="COMPANY_0">%2$s</xliff:g>、<xliff:g id="COMPANY_1">%1$s</xliff:g>"</string>
     <string name="hint_findContacts" msgid="1808681193458772072">"連絡先を検索"</string>
@@ -475,10 +471,9 @@
     <string name="social_widget_loading" msgid="5327336597364074608">"読み込んでいます..."</string>
     <string name="contacts_unavailable_create_contact" msgid="7014525713871959208">"新しい連絡先を作成"</string>
     <string name="contacts_unavailable_add_account" msgid="7911101713860139754">"アカウントにログイン"</string>
-    <string name="contacts_unavailable_import_contacts" msgid="4456440183590517471">"ファイルから連絡先をインポート"</string>
+    <string name="contacts_unavailable_import_contacts" msgid="4957393255392437529">"連絡先をインポート"</string>
     <string name="create_group_dialog_title" msgid="6874527142828424475">"新しいグループの作成"</string>
-    <string name="create_group_item_label" msgid="5218022006186243310">"[新しいグループを作成]"</string>
-    <string name="delete_group_dialog_title" msgid="7368429698398624427">"グループの削除"</string>
+    <string name="create_group_item_label" msgid="4411981763169654825">"新しいグループを作成"</string>
   <plurals name="num_groups_in_account">
     <item quantity="one" msgid="2944819210288517794">"1グループ"</item>
     <item quantity="other" msgid="1276758425904917367">"<xliff:g id="COUNT">%0$d</xliff:g>グループ"</item>
@@ -497,9 +492,8 @@
     <string name="set_default" msgid="4417505153468300351">"デフォルトに設定"</string>
     <string name="clear_default" msgid="7193185801596678067">"デフォルトを解除"</string>
     <string name="toast_text_copied" msgid="5143776250008541719">"テキストをコピーしました"</string>
-    <string name="cancel_confirmation_dialog_title" msgid="3950463632415908534">"変更を破棄"</string>
     <string name="cancel_confirmation_dialog_message" msgid="5885724679874403115">"変更を破棄しますか？"</string>
-    <string name="call_type_and_date" msgid="1766269584078149149">"<xliff:g id="CALL_TYPE">%1$s</xliff:g> <xliff:g id="CALL_SHORT_DATE">%2$s</xliff:g>"</string>
+    <string name="call_type_and_date" msgid="747163730039311423">"<xliff:g id="CALL_TYPE">%1$s</xliff:g> <xliff:g id="CALL_SHORT_DATE">%2$s</xliff:g>"</string>
     <string name="profile_display_name" msgid="4127389543625918771">"プロフィールを設定"</string>
     <string name="enter_contact_name" msgid="1738391320566349924">"名前を入力"</string>
     <string name="view_updates_from_group" msgid="1782685984905600034">"更新情報を表示"</string>
@@ -507,6 +501,7 @@
     <item quantity="one" msgid="1746619685488504230">"ボイスメール"</item>
     <item quantity="other" msgid="5513481419205061254">"<xliff:g id="COUNT">%1$d</xliff:g>件のボイスメール"</item>
   </plurals>
+    <string name="notification_action_voicemail_play" msgid="6113133136977996863">"再生"</string>
     <string name="notification_voicemail_callers_list" msgid="1153954809339404149">"<xliff:g id="NEWER_CALLERS">%1$s</xliff:g>、<xliff:g id="OLDER_CALLER">%2$s</xliff:g>"</string>
     <string name="notification_new_voicemail_ticker" msgid="895342132049452081">"<xliff:g id="CALLER">%1$s</xliff:g>から新着ボイスメール"</string>
     <string name="voicemail_playback_error" msgid="1811242131549854624">"ボイスメールを再生できませんでした。"</string>
@@ -561,7 +556,8 @@
     <string name="keep_local" msgid="1258761699192993322">"ローカルに保存"</string>
     <string name="add_account" msgid="8201790677994503186">"アカウントを追加"</string>
     <string name="add_new_account" msgid="5748627740680940264">"新しいアカウントを追加"</string>
-    <string name="dialog_phone_call_prohibited_title" msgid="2111395432187079579">"発信できません"</string>
-    <string name="dialog_voicemail_not_ready_title" msgid="7258109862329777060">"ボイスメールの番号を利用できません"</string>
+    <string name="dialog_phone_call_prohibited_message" msgid="6554711866586660441">"発信できません"</string>
     <string name="dialog_voicemail_not_ready_message" msgid="4384716252789515378">"ボイスメールをセットアップするには、MENUキー&gt;[設定]をタップします。"</string>
+    <string name="dialog_voicemail_airplane_mode_message" msgid="530922773669546093">"機内モードをOFFにしてからボイスメールを呼び出してください。"</string>
+    <string name="action_menu_overflow_description" msgid="2303272250613084574">"その他のオプション"</string>
 </resources>

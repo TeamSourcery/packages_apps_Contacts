@@ -17,18 +17,14 @@
 package com.android.contacts.model;
 
 import com.android.contacts.R;
-import com.android.contacts.model.AccountType.DefinitionException;
+import com.android.contacts.test.NeededForTesting;
 import com.android.contacts.util.DateUtils;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Maps;
 
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.res.Resources;
-import android.database.Cursor;
 import android.provider.ContactsContract.CommonDataKinds.BaseTypes;
 import android.provider.ContactsContract.CommonDataKinds.Email;
 import android.provider.ContactsContract.CommonDataKinds.Event;
@@ -47,6 +43,9 @@ import android.provider.ContactsContract.CommonDataKinds.Website;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.inputmethod.EditorInfo;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,6 +77,12 @@ public abstract class BaseAccountType extends AccountType {
                                                              // basic format as email addresses
     protected static final int FLAGS_RELATION = EditorInfo.TYPE_CLASS_TEXT
             | EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS | EditorInfo.TYPE_TEXT_VARIATION_PERSON_NAME;
+
+    // Specify the maximum number of lines that can be used to display various field types.  If no
+    // value is specified for a particular type, we use the default value from {@link DataKind}.
+    protected static final int MAX_LINES_FOR_POSTAL_ADDRESS = 10;
+    protected static final int MAX_LINES_FOR_GROUP = 10;
+    protected static final int MAX_LINES_FOR_NOTE = 100;
 
     private interface Tag {
         static final String DATA_KIND = "DataKind";
@@ -323,6 +328,8 @@ public abstract class BaseAccountType extends AccountType {
                 new EditField(StructuredPostal.FORMATTED_ADDRESS, R.string.postal_address,
                         FLAGS_POSTAL));
 
+        kind.maxLinesForDisplay = MAX_LINES_FOR_POSTAL_ADDRESS;
+
         return kind;
     }
 
@@ -391,6 +398,8 @@ public abstract class BaseAccountType extends AccountType {
         kind.fieldList = Lists.newArrayList();
         kind.fieldList.add(new EditField(Note.NOTE, R.string.label_notes, FLAGS_NOTE));
 
+        kind.maxLinesForDisplay = MAX_LINES_FOR_NOTE;
+
         return kind;
     }
 
@@ -430,6 +439,8 @@ public abstract class BaseAccountType extends AccountType {
         kind.fieldList = Lists.newArrayList();
         kind.fieldList.add(new EditField(GroupMembership.GROUP_ROW_ID, -1, -1));
 
+        kind.maxLinesForDisplay = MAX_LINES_FOR_GROUP;
+
         return kind;
     }
 
@@ -454,25 +465,7 @@ public abstract class BaseAccountType extends AccountType {
             mColumnName = columnName;
         }
 
-        public CharSequence inflateUsing(Context context, Cursor cursor) {
-            final int index = mColumnName != null ? cursor.getColumnIndex(mColumnName) : -1;
-            final boolean validString = mStringRes > 0;
-            final boolean validColumn = index != -1;
-
-            final CharSequence stringValue = validString ? context.getText(mStringRes) : null;
-            final CharSequence columnValue = validColumn ? cursor.getString(index) : null;
-
-            if (validString && validColumn) {
-                return String.format(stringValue.toString(), columnValue);
-            } else if (validString) {
-                return stringValue;
-            } else if (validColumn) {
-                return columnValue;
-            } else {
-                return null;
-            }
-        }
-
+        @Override
         public CharSequence inflateUsing(Context context, ContentValues values) {
             final boolean validColumn = values.containsKey(mColumnName);
             final boolean validString = mStringRes > 0;
@@ -498,6 +491,7 @@ public abstract class BaseAccountType extends AccountType {
                     + " mColumnName" + mColumnName;
         }
 
+        @NeededForTesting
         public String getColumnNameForTest() {
             return mColumnName;
         }
@@ -529,12 +523,7 @@ public abstract class BaseAccountType extends AccountType {
             }
         }
 
-        public CharSequence inflateUsing(Context context, Cursor cursor) {
-            final Integer type = cursor.getInt(cursor.getColumnIndex(getTypeColumn()));
-            final String label = cursor.getString(cursor.getColumnIndex(getLabelColumn()));
-            return getTypeLabel(context.getResources(), type, label);
-        }
-
+        @Override
         public CharSequence inflateUsing(Context context, ContentValues values) {
             final Integer type = values.getAsInteger(getTypeColumn());
             final String label = values.getAsString(getLabelColumn());
@@ -1210,6 +1199,7 @@ public abstract class BaseAccountType extends AccountType {
                             R.string.postal_country, FLAGS_POSTAL).setOptional(true));
                 }
             } else {
+                kind.maxLinesForDisplay= MAX_LINES_FOR_POSTAL_ADDRESS;
                 kind.fieldList.add(
                         new EditField(StructuredPostal.FORMATTED_ADDRESS, R.string.postal_address,
                                 FLAGS_POSTAL));
@@ -1344,6 +1334,7 @@ public abstract class BaseAccountType extends AccountType {
                     new SimpleInflater(R.string.label_notes), new SimpleInflater(Note.NOTE));
 
             kind.fieldList.add(new EditField(Note.NOTE, R.string.label_notes, FLAGS_NOTE));
+            kind.maxLinesForDisplay = MAX_LINES_FOR_NOTE;
 
             throwIfList(kind);
 
@@ -1417,6 +1408,7 @@ public abstract class BaseAccountType extends AccountType {
                     R.string.groupsLabel, Weight.GROUP_MEMBERSHIP, -1, null, null);
 
             kind.fieldList.add(new EditField(GroupMembership.GROUP_ROW_ID, -1, -1));
+            kind.maxLinesForDisplay = MAX_LINES_FOR_GROUP;
 
             throwIfList(kind);
 

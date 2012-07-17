@@ -18,8 +18,10 @@ package com.android.contacts.socialwidget;
 
 import com.android.contacts.ContactLoader;
 import com.android.contacts.R;
+import com.android.contacts.list.ShortcutIntentBuilder;
 import com.android.contacts.model.AccountType;
 import com.android.contacts.model.AccountTypeManager;
+import com.android.contacts.quickcontact.QuickContactBroadcastReceiver;
 import com.android.contacts.util.ContactBadgeUtil;
 import com.android.contacts.util.HtmlUtils;
 import com.android.contacts.util.StreamItemEntry;
@@ -27,6 +29,7 @@ import com.android.contacts.util.StreamItemEntry;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.ComponentName;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
@@ -76,7 +79,7 @@ public class SocialWidgetProvider extends AppWidgetProvider {
             ContactLoader loader = sLoaders.get(appWidgetId);
             if (loader != null) {
                 Log.d(TAG, "Stopping loader for widget with id=" + appWidgetId);
-                loader.stopLoading();
+                loader.reset();
                 sLoaders.delete(appWidgetId);
             }
         }
@@ -113,7 +116,7 @@ public class SocialWidgetProvider extends AppWidgetProvider {
             return;
         }
         final ContactLoader contactLoader = new ContactLoader(context, contactUri, false, true,
-                false);
+                false, true);
         contactLoader.registerListener(0,
                 new ContactLoader.OnLoadCompleteListener<ContactLoader.Result>() {
                     @Override
@@ -145,17 +148,10 @@ public class SocialWidgetProvider extends AppWidgetProvider {
 
             // TODO: Rotate between all the stream items?
 
-            // OnClick launch QuickContact
-            final Intent intent = new Intent(QuickContact.ACTION_QUICK_CONTACT);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-
+            final Intent intent = new Intent(context, QuickContactBroadcastReceiver.class);
             intent.setData(contactData.getLookupUri());
-            intent.putExtra(QuickContact.EXTRA_MODE, QuickContact.MODE_SMALL);
-
-            final PendingIntent pendingIntent = PendingIntent.getActivity(context,
-                    0, intent, 0);
+            final PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                    context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
             views.setOnClickPendingIntent(R.id.border, pendingIntent);
 
             setDisplayNameAndSnippet(context, views, contactData.getDisplayName(),
@@ -228,7 +224,7 @@ public class SocialWidgetProvider extends AppWidgetProvider {
                 final Uri uri = ContentUris.withAppendedId(StreamItems.CONTENT_URI,
                         streamItem.getId());
                 final Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                intent.setClassName(accountType.resPackageName,
+                intent.setClassName(accountType.syncAdapterPackageName,
                         accountType.getViewStreamItemActivity());
                 views.setOnClickPendingIntent(R.id.name_and_snippet_container,
                         PendingIntent.getActivity(context, 0, intent, 0));

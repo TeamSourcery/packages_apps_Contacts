@@ -24,7 +24,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:scrollbars="none"
-    android:orientation="horizontal">
+    android:orientation="horizontal"
+    android:baselineAligned="false">
 
     <!--
       Container for the "About" fragment on the contact card for a contact
@@ -53,6 +54,7 @@
         android:id="@+id/updates_fragment_container"
         android:layout_width="0dip"
         android:layout_weight="2"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:visibility="gone" />
 
 </LinearLayout>

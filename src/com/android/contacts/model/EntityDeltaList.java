@@ -16,26 +16,26 @@
 
 package com.android.contacts.model;
 
+import com.android.contacts.model.EntityDelta.ValuesDelta;
+import com.google.android.collect.Lists;
+
 import android.content.ContentProviderOperation;
+import android.content.ContentProviderOperation.Builder;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Entity;
 import android.content.EntityIterator;
-import android.content.ContentProviderOperation.Builder;
 import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.provider.ContactsContract.AggregationExceptions;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.RawContacts;
-import android.provider.ContactsContract.RawContactsEntity;
-
-import com.google.android.collect.Lists;
-
-import com.android.contacts.model.EntityDelta.ValuesDelta;
+import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * Container for multiple {@link EntityDelta} objects, usually when editing
@@ -43,6 +43,9 @@ import java.util.List;
  * and applying another {@link EntityDeltaList} over it.
  */
 public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelable {
+    private static final String TAG = "EntityDeltaList";
+    private static final boolean VERBOSE_LOGGING = Log.isLoggable(TAG, Log.VERBOSE);
+
     private boolean mSplitRawContacts;
     private long[] mJoinWithRawContactIds;
 
@@ -124,6 +127,9 @@ public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelabl
      * any {@link AggregationExceptions} rules needed to groups edits together.
      */
     public ArrayList<ContentProviderOperation> buildDiff() {
+        if (VERBOSE_LOGGING) {
+            Log.v(TAG, "buildDiff: list=" + toString());
+        }
         final ArrayList<ContentProviderOperation> diff = Lists.newArrayList();
 
         final long rawContactId = this.findRawContactId();
@@ -198,8 +204,21 @@ public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelabl
         if (diff.size() == assertMark) {
             diff.clear();
         }
-
+        if (VERBOSE_LOGGING) {
+            Log.v(TAG, "buildDiff: ops=" + diffToString(diff));
+        }
         return diff;
+    }
+
+    private static String diffToString(ArrayList<ContentProviderOperation> ops) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[\n");
+        for (ContentProviderOperation op : ops) {
+            sb.append(op.toString());
+            sb.append(",\n");
+        }
+        sb.append("]\n");
+        return sb.toString();
     }
 
     /**
@@ -290,6 +309,9 @@ public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelabl
         return null;
     }
 
+    /**
+     * Find the raw-contact (an {@link EntityDelta}) with the specified ID.
+     */
     public EntityDelta getByRawContactId(Long rawContactId) {
         final int index = this.indexOfRawContactId(rawContactId);
         return (index == -1) ? null : this.get(index);
@@ -308,6 +330,23 @@ public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelabl
             }
         }
         return -1;
+    }
+
+    /** Return the index of the first EntityDelta corresponding to a writable raw-contact, or -1. */
+    public int indexOfFirstWritableRawContact(Context context) {
+        // Find the first writable entity.
+        int entityIndex = 0;
+        for (EntityDelta delta : this) {
+            if (delta.getRawContactAccountType(context).areContactsWritable()) return entityIndex;
+            entityIndex++;
+        }
+        return -1;
+    }
+
+    /**  Return the first EntityDelta corresponding to a writable raw-contact, or null. */
+    public EntityDelta getFirstWritableRawContact(Context context) {
+        final int index = indexOfFirstWritableRawContact(context);
+        return (index == -1) ? null : get(index);
     }
 
     public ValuesDelta getSuperPrimaryEntry(final String mimeType) {
@@ -354,12 +393,14 @@ public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelabl
     }
 
     /** {@inheritDoc} */
+    @Override
     public int describeContents() {
         // Nothing special about this parcel
         return 0;
     }
 
     /** {@inheritDoc} */
+    @Override
     public void writeToParcel(Parcel dest, int flags) {
         final int size = this.size();
         dest.writeInt(size);
@@ -383,14 +424,30 @@ public class EntityDeltaList extends ArrayList<EntityDelta> implements Parcelabl
 
     public static final Parcelable.Creator<EntityDeltaList> CREATOR =
             new Parcelable.Creator<EntityDeltaList>() {
+        @Override
         public EntityDeltaList createFromParcel(Parcel in) {
             final EntityDeltaList state = new EntityDeltaList();
             state.readFromParcel(in);
             return state;
         }
 
+        @Override
         public EntityDeltaList[] newArray(int size) {
             return new EntityDeltaList[size];
         }
     };
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("(");
+        sb.append("Split=");
+        sb.append(mSplitRawContacts);
+        sb.append(", Join=[");
+        sb.append(Arrays.toString(mJoinWithRawContactIds));
+        sb.append("], Values=");
+        sb.append(super.toString());
+        sb.append(")");
+        return sb.toString();
+    }
 }

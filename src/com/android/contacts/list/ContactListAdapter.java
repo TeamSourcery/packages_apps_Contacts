@@ -23,7 +23,6 @@ import android.net.Uri;
 import android.provider.ContactsContract;
 import android.provider.ContactsContract.ContactCounts;
 import android.provider.ContactsContract.Contacts;
-import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.Directory;
 import android.provider.ContactsContract.SearchSnippetColumns;
 import android.text.TextUtils;
@@ -226,11 +225,11 @@ public abstract class ContactListAdapter extends ContactEntryListAdapter {
         }
 
         if (photoId != 0) {
-            getPhotoLoader().loadPhoto(view.getPhotoView(), photoId, false, false);
+            getPhotoLoader().loadThumbnail(view.getPhotoView(), photoId, false);
         } else {
             final String photoUriString = cursor.getString(ContactQuery.CONTACT_PHOTO_URI);
             final Uri photoUri = photoUriString == null ? null : Uri.parse(photoUriString);
-            getPhotoLoader().loadPhoto(view.getPhotoView(), photoUri, false, false);
+            getPhotoLoader().loadDirectoryPhoto(view.getPhotoView(), photoUri, false);
         }
     }
 

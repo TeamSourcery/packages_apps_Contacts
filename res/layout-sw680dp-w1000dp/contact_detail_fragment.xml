@@ -16,14 +16,12 @@
 
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:ex="http://schemas.android.com/apk/res/com.android.contacts"
     android:id="@+id/contact_detail"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background_primary"
-    android:paddingLeft="16dip"
-    android:paddingRight="16dip">
+    android:paddingLeft="16dip">
 
     <!-- Placeholder for empty list -->
     <include
@@ -36,14 +34,15 @@
         android:orientation="horizontal"
         android:layout_weight="1"
         android:layout_width="match_parent"
-        android:layout_height="0dip">
+        android:layout_height="0dip"
+        android:baselineAligned="false">
 
-        <ImageView android:id="@+id/photo"
-            android:scaleType="centerCrop"
+        <include android:id="@+id/static_photo_container"
+            layout="@layout/photo_selector_view"
             android:layout_width="@dimen/detail_contact_photo_size"
             android:layout_height="@dimen/detail_contact_photo_size"
             android:layout_marginTop="@dimen/detail_contact_photo_margin"
-            android:layout_marginRight="@dimen/detail_contact_photo_margin"/>
+            android:layout_marginRight="@dimen/detail_contact_photo_margin" />
 
         <ListView android:id="@android:id/list"
             android:layout_width="0dip"
@@ -52,9 +51,11 @@
             android:clipToPadding="false"
             android:fadingEdge="none"
             android:layout_weight="1"
-            android:divider="@null"/>
+            android:divider="@null"
+            android:paddingRight="16dip"
+            android:scrollbarStyle="outsideOverlay"/>
 
-   </LinearLayout>
+    </LinearLayout>
 
     <!-- "QuickFix"- button (Copy to local contact, add to group) -->
     <Button

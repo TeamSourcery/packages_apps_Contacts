@@ -43,12 +43,10 @@ import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
-import android.widget.CheckBox;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -56,17 +54,11 @@ import java.util.ArrayList;
 public class ContactDetailActivity extends ContactsActivity {
     private static final String TAG = "ContactDetailActivity";
 
-    /**
-     * Boolean intent key that specifies whether pressing the "up" affordance in this activity
-     * should cause it to finish itself or launch an intent to bring the user back to a specific
-     * parent activity - the {@link PeopleActivity}.
-     */
-    public static final String INTENT_KEY_FINISH_ACTIVITY_ON_UP_SELECTED =
-            "finishActivityOnUpSelected";
+    /** Shows a toogle button for hiding/showing updates. Don't submit with true */
+    private static final boolean DEBUG_TRANSITIONS = false;
 
     private ContactLoader.Result mContactData;
     private Uri mLookupUri;
-    private boolean mFinishActivityOnUpSelected;
 
     private ContactDetailLayoutController mContactDetailLayoutController;
     private ContactLoaderFragment mLoaderFragment;
@@ -74,7 +66,7 @@ public class ContactDetailActivity extends ContactsActivity {
     private Handler mHandler = new Handler();
 
     @Override
-    public void onCreate(Bundle savedState) {
+    protected void onCreate(Bundle savedState) {
         super.onCreate(savedState);
         if (PhoneCapabilityTester.isUsingTwoPanes(this)) {
             // This activity must not be shown. We have to select the contact in the
@@ -83,9 +75,18 @@ public class ContactDetailActivity extends ContactsActivity {
             Intent intent = new Intent();
             intent.setAction(originalIntent.getAction());
             intent.setDataAndType(originalIntent.getData(), originalIntent.getType());
-            intent.setFlags(
-                    Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS | Intent.FLAG_ACTIVITY_FORWARD_RESULT
-                            | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            // If we are launched from the outside, we should create a new task, because the user
+            // can freely navigate the app (this is different from phones, where only the UP button
+            // kicks the user into the full app)
+            if (shouldUpRecreateTask(intent)) {
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK |
+                        Intent.FLAG_ACTIVITY_TASK_ON_HOME);
+            } else {
+                intent.setFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS |
+                        Intent.FLAG_ACTIVITY_FORWARD_RESULT | Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            }
 
             intent.setClass(this, PeopleActivity.class);
             startActivity(intent);
@@ -93,13 +94,10 @@ public class ContactDetailActivity extends ContactsActivity {
             return;
         }
 
-        mFinishActivityOnUpSelected = getIntent().getBooleanExtra(
-                INTENT_KEY_FINISH_ACTIVITY_ON_UP_SELECTED, false);
-
         setContentView(R.layout.contact_detail_activity);
 
         mContactDetailLayoutController = new ContactDetailLayoutController(this, savedState,
-                getFragmentManager(), findViewById(R.id.contact_detail_container),
+                getFragmentManager(), null, findViewById(R.id.contact_detail_container),
                 mContactDetailFragmentListener);
 
         // We want the UP affordance but no app icon.
@@ -129,32 +127,55 @@ public class ContactDetailActivity extends ContactsActivity {
         super.onCreateOptionsMenu(menu);
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.star, menu);
+        if (DEBUG_TRANSITIONS) {
+            final MenuItem toggleSocial =
+                    menu.add(mLoaderFragment.getLoadStreamItems() ? "less" : "more");
+            toggleSocial.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+            toggleSocial.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+                @Override
+                public boolean onMenuItemClick(MenuItem item) {
+                    mLoaderFragment.toggleLoadStreamItems();
+                    invalidateOptionsMenu();
+                    return false;
+                }
+            });
+        }
         return true;
     }
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
-        MenuItem starredMenuItem = menu.findItem(R.id.menu_star);
-        ViewGroup starredContainer = (ViewGroup) getLayoutInflater().inflate(
-                R.layout.favorites_star, null, false);
-        final CheckBox starredView = (CheckBox) starredContainer.findViewById(R.id.star);
-        starredView.setOnClickListener(new OnClickListener() {
+        final MenuItem starredMenuItem = menu.findItem(R.id.menu_star);
+        starredMenuItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
             @Override
-            public void onClick(View v) {
+            public boolean onMenuItemClick(MenuItem item) {
                 // Toggle "starred" state
                 // Make sure there is a contact
                 if (mLookupUri != null) {
+                    // Read the current starred value from the UI instead of using the last
+                    // loaded state. This allows rapid tapping without writing the same
+                    // value several times
+                    final boolean isStarred = starredMenuItem.isChecked();
+
+                    // To improve responsiveness, swap out the picture (and tag) in the UI already
+                    ContactDetailDisplayUtils.configureStarredMenuItem(starredMenuItem,
+                            mContactData.isDirectoryEntry(), mContactData.isUserProfile(),
+                            !isStarred);
+
+                    // Now perform the real save
                     Intent intent = ContactSaveService.createSetStarredIntent(
-                            ContactDetailActivity.this, mLookupUri, starredView.isChecked());
+                            ContactDetailActivity.this, mLookupUri, !isStarred);
                     ContactDetailActivity.this.startService(intent);
                 }
+                return true;
             }
         });
         // If there is contact data, update the starred state
         if (mContactData != null) {
-            ContactDetailDisplayUtils.setStarred(mContactData, starredView);
+            ContactDetailDisplayUtils.configureStarredMenuItem(starredMenuItem,
+                    mContactData.isDirectoryEntry(), mContactData.isUserProfile(),
+                    mContactData.getStarred());
         }
-        starredMenuItem.setActionView(starredContainer);
         return true;
     }
 
@@ -284,25 +305,5 @@ public class ContactDetailActivity extends ContactsActivity {
          * otherwise.
          */
         public boolean handleKeyDown(int keyCode);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-
-        switch (item.getItemId()) {
-            case android.R.id.home:
-                if (mFinishActivityOnUpSelected) {
-                    finish();
-                    return true;
-                }
-                Intent intent = new Intent(this, PeopleActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(intent);
-                finish();
-                return true;
-            default:
-                break;
-        }
-        return super.onOptionsItemSelected(item);
     }
 }

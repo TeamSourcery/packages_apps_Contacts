@@ -24,6 +24,7 @@ import com.android.contacts.model.EntityDelta.ValuesDelta;
 import com.android.contacts.model.EntityModifier;
 
 import android.content.Context;
+import android.provider.ContactsContract.Data;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
@@ -55,6 +56,8 @@ public class KindSectionView extends LinearLayout implements EditorListener {
     private ViewIdGenerator mViewIdGenerator;
 
     private LayoutInflater mInflater;
+
+    private final ArrayList<Runnable> mRunWhenWindowFocused = new ArrayList<Runnable>(1);
 
     public KindSectionView(Context context) {
         this(context, null);
@@ -110,13 +113,18 @@ public class KindSectionView extends LinearLayout implements EditorListener {
     public void onDeleteRequested(Editor editor) {
         // If there is only 1 editor in the section, then don't allow the user to delete it.
         // Just clear the fields in the editor.
+        final boolean animate;
         if (getEditorCount() == 1) {
             editor.clearAllFields();
+            animate = true;
         } else {
             // Otherwise it's okay to delete this {@link Editor}
             editor.deleteEditor();
+
+            // This is already animated, don't do anything further here
+            animate = false;
         }
-        updateAddFooterVisible();
+        updateAddFooterVisible(animate);
     }
 
     @Override
@@ -124,7 +132,7 @@ public class KindSectionView extends LinearLayout implements EditorListener {
         // If a field has become empty or non-empty, then check if another row
         // can be added dynamically.
         if (request == FIELD_TURNED_EMPTY || request == FIELD_TURNED_NON_EMPTY) {
-            updateAddFooterVisible();
+            updateAddFooterVisible(true);
         }
     }
 
@@ -143,7 +151,7 @@ public class KindSectionView extends LinearLayout implements EditorListener {
         mTitle.setText(mTitleString);
 
         rebuildFromState();
-        updateAddFooterVisible();
+        updateAddFooterVisible(false);
         updateSectionVisible();
     }
 
@@ -223,18 +231,26 @@ public class KindSectionView extends LinearLayout implements EditorListener {
         setVisibility(getEditorCount() != 0 ? VISIBLE : GONE);
     }
 
-    protected void updateAddFooterVisible() {
+    protected void updateAddFooterVisible(boolean animate) {
         if (!mReadOnly && (mKind.typeOverallMax != 1)) {
             // First determine whether there are any existing empty editors.
             updateEmptyEditors();
             // If there are no existing empty editors and it's possible to add
             // another field, then make the "add footer" field visible.
             if (!hasEmptyEditor() && EntityModifier.canInsert(mState, mKind)) {
-                mAddFieldFooter.setVisibility(View.VISIBLE);
+                if (animate) {
+                    EditorAnimator.getInstance().showAddFieldFooter(mAddFieldFooter);
+                } else {
+                    mAddFieldFooter.setVisibility(View.VISIBLE);
+                }
                 return;
             }
         }
-        mAddFieldFooter.setVisibility(View.GONE);
+        if (animate) {
+            EditorAnimator.getInstance().hideAddFieldFooter(mAddFieldFooter);
+        } else {
+            mAddFieldFooter.setVisibility(View.GONE);
+        }
     }
 
     /**
@@ -291,6 +307,46 @@ public class KindSectionView extends LinearLayout implements EditorListener {
         return true;
     }
 
+    /**
+     * Extends superclass implementation to also run tasks
+     * enqueued by {@link #runWhenWindowFocused}.
+     */
+    @Override
+    public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        if (hasWindowFocus) {
+            for (Runnable r: mRunWhenWindowFocused) {
+                r.run();
+            }
+            mRunWhenWindowFocused.clear();
+        }
+    }
+
+    /**
+     * Depending on whether we are in the currently-focused window, either run
+     * the argument immediately, or stash it until our window becomes focused.
+     */
+    private void runWhenWindowFocused(Runnable r) {
+        if (hasWindowFocus()) {
+            r.run();
+        } else {
+            mRunWhenWindowFocused.add(r);
+        }
+    }
+
+    /**
+     * Simple wrapper around {@link #runWhenWindowFocused}
+     * to ensure that it runs in the UI thread.
+     */
+    private void postWhenWindowFocused(final Runnable r) {
+        post(new Runnable() {
+            @Override
+            public void run() {
+                runWhenWindowFocused(r);
+            }
+        });
+    }
+
     public void addItem() {
         ValuesDelta values = null;
         // If this is a list, we can freely add. If not, only allow adding the first.
@@ -312,13 +368,15 @@ public class KindSectionView extends LinearLayout implements EditorListener {
         }
 
         final View newField = createEditorView(values);
-        post(new Runnable() {
-
-            @Override
-            public void run() {
-                newField.requestFocus();
-            }
-        });
+        if (newField instanceof Editor) {
+            postWhenWindowFocused(new Runnable() {
+                @Override
+                public void run() {
+                    newField.requestFocus();
+                    ((Editor)newField).editNewlyAddedField();
+                }
+            });
+        }
 
         // Hide the "add field" footer because there is now a blank field.
         mAddFieldFooter.setVisibility(View.GONE);

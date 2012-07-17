@@ -16,35 +16,33 @@
 
 package com.android.contacts.editor;
 
+import com.android.contacts.ContactsUtils;
 import com.android.contacts.R;
 import com.android.contacts.model.DataKind;
 import com.android.contacts.model.EntityDelta;
 import com.android.contacts.model.EntityDelta.ValuesDelta;
+import com.android.contacts.util.ContactPhotoUtils;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.provider.ContactsContract.CommonDataKinds.Photo;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import android.widget.LinearLayout;
 
 /**
  * Simple editor for {@link Photo}.
  */
-public class PhotoEditorView extends FrameLayout implements Editor {
-    private static final String TAG = "PhotoEditorView";
+public class PhotoEditorView extends LinearLayout implements Editor {
 
     private ImageView mPhotoImageView;
     private View mFrameView;
 
     private ValuesDelta mEntry;
     private EditorListener mListener;
+    private View mTriangleAffordance;
 
     private boolean mHasSetPhoto = false;
     private boolean mReadOnly;
@@ -63,10 +61,17 @@ public class PhotoEditorView extends FrameLayout implements Editor {
         mFrameView.setEnabled(enabled);
     }
 
+    @Override
+    public void editNewlyAddedField() {
+        // Never called, since the user never adds a new photo-editor;
+        // you can only change the picture in an existing editor.
+    }
+
     /** {@inheritDoc} */
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
+        mTriangleAffordance = findViewById(R.id.photo_triangle_affordance);
         mPhotoImageView = (ImageView) findViewById(R.id.photo);
         mFrameView = findViewById(R.id.frame);
         mFrameView.setOnClickListener(new OnClickListener() {
@@ -132,25 +137,24 @@ public class PhotoEditorView extends FrameLayout implements Editor {
             return;
         }
 
-        final int size = photo.getWidth() * photo.getHeight() * 4;
-        final ByteArrayOutputStream out = new ByteArrayOutputStream(size);
+        mPhotoImageView.setImageBitmap(photo);
+        mFrameView.setEnabled(isEnabled());
+        mHasSetPhoto = true;
+        mEntry.setFromTemplate(false);
 
-        try {
-            photo.compress(Bitmap.CompressFormat.PNG, 100, out);
-            out.flush();
-            out.close();
+        // When the user chooses a new photo mark it as super primary
+        mEntry.put(Photo.IS_SUPER_PRIMARY, 1);
 
-            mEntry.put(Photo.PHOTO, out.toByteArray());
-            mPhotoImageView.setImageBitmap(photo);
-            mFrameView.setEnabled(isEnabled());
-            mHasSetPhoto = true;
-            mEntry.setFromTemplate(false);
-
-            // When the user chooses a new photo mark it as super primary
-            mEntry.put(Photo.IS_SUPER_PRIMARY, 1);
-        } catch (IOException e) {
-            Log.w(TAG, "Unable to serialize photo: " + e.toString());
-        }
+        // Even though high-res photos cannot be saved by passing them via
+        // an EntityDeltaList (since they cause the Bundle size limit to be
+        // exceeded), we still pass a low-res thumbnail. This simplifies
+        // code all over the place, because we don't have to test whether
+        // there is a change in EITHER the delta-list OR a changed photo...
+        // this way, there is always a change in the delta-list.
+        final int size = ContactsUtils.getThumbnailSize(getContext());
+        final Bitmap scaled = Bitmap.createScaledBitmap(photo, size, size, false);
+        final byte[] compressed = ContactPhotoUtils.compressBitmap(scaled);
+        if (compressed != null) mEntry.put(Photo.PHOTO, compressed);
     }
 
     /**
@@ -172,6 +176,10 @@ public class PhotoEditorView extends FrameLayout implements Editor {
     @Override
     public void setEditorListener(EditorListener listener) {
         mListener = listener;
+
+        final boolean isPushable = listener != null;
+        mTriangleAffordance.setVisibility(isPushable ? View.VISIBLE : View.INVISIBLE);
+        mFrameView.setVisibility(isPushable ? View.VISIBLE : View.INVISIBLE);
     }
 
     @Override

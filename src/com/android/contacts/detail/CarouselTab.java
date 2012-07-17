@@ -17,32 +17,30 @@
 package com.android.contacts.detail;
 
 import com.android.contacts.R;
+import com.android.contacts.widget.FrameLayoutWithOverlay;
 
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.RelativeLayout;
+import android.view.ViewPropertyAnimator;
 import android.widget.TextView;
 
 /**
  * This is a tab in the {@link ContactDetailTabCarousel}.
  */
-public class CarouselTab extends RelativeLayout implements ViewOverlay {
+public class CarouselTab extends FrameLayoutWithOverlay {
 
     private static final String TAG = CarouselTab.class.getSimpleName();
 
+    private static final long FADE_TRANSITION_TIME = 150;
+
     private TextView mLabelView;
+    private View mLabelBackgroundView;
 
     /**
-     * This view adds an alpha layer over the entire tab.
+     * This view adds an alpha layer over the entire tab (except for the label).
      */
     private View mAlphaLayer;
-
-    /**
-     * This view adds a layer over the entire tab so that when visible, it intercepts all touch
-     * events on the tab.
-     */
-    private View mTouchInterceptLayer;
 
     public CarouselTab(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -53,10 +51,9 @@ public class CarouselTab extends RelativeLayout implements ViewOverlay {
         super.onFinishInflate();
 
         mLabelView = (TextView) findViewById(R.id.label);
-        mLabelView.setClickable(true);
-
+        mLabelBackgroundView = findViewById(R.id.label_background);
         mAlphaLayer = findViewById(R.id.alpha_overlay);
-        mTouchInterceptLayer = findViewById(R.id.touch_intercept_overlay);
+        setAlphaLayer(mAlphaLayer);
     }
 
     public void setLabel(String label) {
@@ -71,22 +68,19 @@ public class CarouselTab extends RelativeLayout implements ViewOverlay {
         mLabelView.setSelected(false);
     }
 
-    @Override
-    public void disableTouchInterceptor() {
-        // This shouldn't be called because there is no need to disable the touch interceptor if
-        // there is no content within the tab that needs to be clicked.
-    }
+    public void fadeInLabelViewAnimator(int startDelay, boolean fadeBackground) {
+        final ViewPropertyAnimator labelAnimator = mLabelView.animate();
+        mLabelView.setAlpha(0.0f);
+        labelAnimator.alpha(1.0f);
+        labelAnimator.setStartDelay(startDelay);
+        labelAnimator.setDuration(FADE_TRANSITION_TIME);
 
-    @Override
-    public void enableTouchInterceptor(OnClickListener clickListener) {
-        if (mTouchInterceptLayer != null) {
-            mTouchInterceptLayer.setVisibility(View.VISIBLE);
-            mTouchInterceptLayer.setOnClickListener(clickListener);
+        if (fadeBackground) {
+            final ViewPropertyAnimator backgroundAnimator = mLabelBackgroundView.animate();
+            mLabelBackgroundView.setAlpha(0.0f);
+            backgroundAnimator.alpha(1.0f);
+            backgroundAnimator.setStartDelay(startDelay);
+            backgroundAnimator.setDuration(FADE_TRANSITION_TIME);
         }
-    }
-
-    @Override
-    public void setAlphaLayerValue(float alpha) {
-        ContactDetailDisplayUtils.setAlphaOnViewBackground(mAlphaLayer, alpha);
     }
 }

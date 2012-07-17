@@ -19,6 +19,8 @@
 
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
 
     <uses-permission android:name="android.permission.USE_CREDENTIALS" />
@@ -27,6 +29,9 @@
     <uses-permission android:name="android.permission.READ_SYNC_STATS" />
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+
+    <uses-permission android:name="android.permission.READ_PROFILE" />
+    <uses-permission android:name="android.permission.READ_SOCIAL_STREAM" />
 
     <application>
         <uses-library android:name="android.test.runner" />
@@ -119,6 +124,9 @@
                 android:name="android.provider.CONTACTS_STRUCTURE"
                 android:resource="@xml/test_basic_contacts" />
         </service>
+
+        <service android:name=".QueryService" />
+        <service android:name=".PhoneNumberTestService" />
     </application>
 
     <instrumentation android:name="android.test.InstrumentationTestRunner"

@@ -16,10 +16,13 @@
 
 package com.android.contacts.util;
 
+import com.android.contacts.detail.ContactDetailDisplayUtils;
 import com.android.contacts.test.NeededForTesting;
 
+import android.content.Context;
 import android.database.Cursor;
 import android.provider.ContactsContract.StreamItems;
+import android.text.Html;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,6 +44,10 @@ public class StreamItemEntry implements Comparable<StreamItemEntry> {
     private final String mAccountName;
     private final String mDataSet;
 
+    private boolean mDecoded;
+    private CharSequence mDecodedText;
+    private CharSequence mDecodedComments;
+
     // Package references for label and icon resources.
     private final String mResPackage;
     private final String mIconRes;
@@ -50,7 +57,14 @@ public class StreamItemEntry implements Comparable<StreamItemEntry> {
     private List<StreamItemPhotoEntry> mPhotos;
 
     @NeededForTesting
-    public StreamItemEntry(long id, String text, String comments, long timestamp,
+    public static StreamItemEntry createForTest(long id, String text, String comments,
+            long timestamp, String accountType, String accountName, String dataSet,
+            String resPackage, String iconRes, String labelRes) {
+        return new StreamItemEntry(id, text, comments, timestamp, accountType, accountName, dataSet,
+                resPackage, iconRes, labelRes);
+    }
+
+    private StreamItemEntry(long id, String text, String comments, long timestamp,
             String accountType, String accountName, String dataSet, String resPackage,
             String iconRes, String labelRes) {
         mId = id;
@@ -134,6 +148,39 @@ public class StreamItemEntry implements Comparable<StreamItemEntry> {
     public List<StreamItemPhotoEntry> getPhotos() {
         Collections.sort(mPhotos);
         return mPhotos;
+    }
+
+    /**
+     * Make {@link #getDecodedText} and {@link #getDecodedComments} available.  Must be called
+     * before calling those.
+     *
+     * We can't do this automatically in the getters, because it'll require a {@link Context}.
+     */
+    public void decodeHtml(Context context) {
+        final Html.ImageGetter imageGetter = ContactDetailDisplayUtils.getImageGetter(context);
+        if (mText != null) {
+            mDecodedText = HtmlUtils.fromHtml(context, mText, imageGetter, null);
+        }
+        if (mComments != null) {
+            mDecodedComments = HtmlUtils.fromHtml(context, mComments, imageGetter, null);
+        }
+        mDecoded = true;
+    }
+
+    public CharSequence getDecodedText() {
+        checkDecoded();
+        return mDecodedText;
+    }
+
+    public CharSequence getDecodedComments() {
+        checkDecoded();
+        return mDecodedComments;
+    }
+
+    private void checkDecoded() {
+        if (!mDecoded) {
+            throw new IllegalStateException("decodeHtml must have been called");
+        }
     }
 
     private static String getString(Cursor cursor, String columnName) {

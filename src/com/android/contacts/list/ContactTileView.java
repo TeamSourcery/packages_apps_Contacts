@@ -16,10 +16,12 @@
 package com.android.contacts.list;
 
 import com.android.contacts.ContactPhotoManager;
+import com.android.contacts.ContactsUtils;
 import com.android.contacts.R;
 import com.android.contacts.list.ContactTileAdapter.ContactEntry;
 
 import android.content.Context;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -30,9 +32,9 @@ import android.widget.QuickContactBadge;
 import android.widget.TextView;
 
 /**
- * A ContactTile displays the contact's picture overlayed with their name
+ * A ContactTile displays a contact's picture and name
  */
-public class ContactTileView extends FrameLayout {
+public abstract class ContactTileView extends FrameLayout {
     private final static String TAG = ContactTileView.class.getSimpleName();
 
     private Uri mLookupUri;
@@ -45,7 +47,7 @@ public class ContactTileView extends FrameLayout {
     private ContactPhotoManager mPhotoManager = null;
     private View mPushState;
     private View mHorizontalDivider;
-    private Listener mListener;
+    protected Listener mListener;
 
     public ContactTileView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -64,20 +66,25 @@ public class ContactTileView extends FrameLayout {
         mPushState = findViewById(R.id.contact_tile_push_state);
         mHorizontalDivider = findViewById(R.id.contact_tile_horizontal_divider);
 
-        OnClickListener listener = new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mListener != null) {
-                    mListener.onClick(ContactTileView.this);
-                }
-            }
-        };
+        OnClickListener listener = createClickListener();
 
         if(mPushState != null) {
             mPushState.setOnClickListener(listener);
         } else {
             setOnClickListener(listener);
         }
+    }
+
+    protected OnClickListener createClickListener() {
+        return new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mListener == null) return;
+                mListener.onContactSelected(
+                        getLookupUri(),
+                        ContactsUtils.getTargetRectFromView(mContext, ContactTileView.this));
+            }
+        };
     }
 
     public void setPhotoManager(ContactPhotoManager photoManager) {
@@ -118,7 +125,7 @@ public class ContactTileView extends FrameLayout {
 
             if (mPhotoManager != null) {
                 if (mPhoto != null) {
-                    mPhotoManager.loadPhoto(mPhoto, entry.photoUri, isDefaultIconHires(),
+                    mPhotoManager.loadPhoto(mPhoto, entry.photoUri, getApproximateImageSize(),
                             isDarkTheme());
 
                     if (mQuickContact != null) {
@@ -126,10 +133,9 @@ public class ContactTileView extends FrameLayout {
                     }
                 } else if (mQuickContact != null) {
                     mQuickContact.assignContactUri(mLookupUri);
-                    mPhotoManager.loadPhoto(mQuickContact, entry.photoUri, isDefaultIconHires(),
-                            isDarkTheme());
+                    mPhotoManager.loadPhoto(mQuickContact, entry.photoUri,
+                            getApproximateImageSize(), isDarkTheme());
                 }
-
             } else {
                 Log.w(TAG, "contactPhotoManager not set");
             }
@@ -156,15 +162,31 @@ public class ContactTileView extends FrameLayout {
         return mLookupUri;
     }
 
-    protected boolean isDefaultIconHires() {
-        return false;
+    protected QuickContactBadge getQuickContact() {
+        return mQuickContact;
     }
 
-    protected boolean isDarkTheme() {
-        return false;
-    }
+    /**
+     * Implemented by subclasses to estimate the size of the picture. This can return -1 if only
+     * a thumbnail is shown anyway
+     */
+    protected abstract int getApproximateImageSize();
+
+    protected abstract boolean isDarkTheme();
 
     public interface Listener {
-        void onClick(ContactTileView contactTileView);
+        /**
+         * Notification that the contact was selected; no specific action is dictated.
+         */
+        void onContactSelected(Uri contactLookupUri, Rect viewRect);
+        /**
+         * Notification that the specified number is to be called.
+         */
+        void onCallNumberDirectly(String phoneNumber);
+        /**
+         * @return The width of each tile. This doesn't have to be a precise number (e.g. paddings
+         *         can be ignored), but is used to load the correct picture size from the database
+         */
+        int getApproximateTileWidth();
     }
 }

@@ -21,6 +21,7 @@ import com.android.contacts.util.StreamItemEntryBuilder;
 import com.google.common.collect.Lists;
 
 import android.test.AndroidTestCase;
+import android.test.suitebuilder.annotation.SmallTest;
 import android.view.View;
 
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 /**
  * Unit tests for {@link StreamItemAdapter}.
  */
+@SmallTest
 public class StreamItemAdapterTest extends AndroidTestCase {
     private StreamItemAdapter mAdapter;
     private FakeOnClickListener mListener;
@@ -83,7 +85,7 @@ public class StreamItemAdapterTest extends AndroidTestCase {
     private ArrayList<StreamItemEntry> createStreamItemList(int count) {
         ArrayList<StreamItemEntry> list = Lists.newArrayList();
         for (int index = 0; index < count; ++index) {
-            list.add(createStreamItemEntryBuilder().build());
+            list.add(createStreamItemEntryBuilder().build(getContext()));
         }
         return list;
     }

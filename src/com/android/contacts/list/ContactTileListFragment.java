@@ -19,6 +19,7 @@ import com.android.contacts.ContactPhotoManager;
 import com.android.contacts.ContactTileLoaderFactory;
 import com.android.contacts.R;
 import com.android.contacts.list.ContactTileAdapter.DisplayType;
+import com.android.contacts.util.PhoneCapabilityTester;
 
 import android.app.Activity;
 import android.app.Fragment;
@@ -31,6 +32,7 @@ import android.database.Cursor;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -49,10 +51,9 @@ public class ContactTileListFragment extends Fragment {
     private static final String TAG = ContactTileListFragment.class.getSimpleName();
 
     public interface Listener {
-        public void onContactSelected(Uri contactUri, Rect targetRect);
+        void onContactSelected(Uri contactUri, Rect targetRect);
+        void onCallNumberDirectly(String phoneNumber);
     }
-
-    private static int LOADER_CONTACTS = 1;
 
     private Listener mListener;
     private ContactTileAdapter mAdapter;
@@ -60,12 +61,14 @@ public class ContactTileListFragment extends Fragment {
     private TextView mEmptyView;
     private ListView mListView;
 
+    private boolean mOptionsMenuHasFrequents;
+
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
 
         Resources res = getResources();
-        int columnCount = res.getInteger(R.integer.contact_tile_column_count);
+        int columnCount = res.getInteger(R.integer.contact_tile_column_count_in_favorites);
 
         mAdapter = new ContactTileAdapter(activity, mAdapterListener,
                 columnCount, mDisplayType);
@@ -94,8 +97,35 @@ public class ContactTileListFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        // TODO: Use initLoader?
-        getLoaderManager().restartLoader(LOADER_CONTACTS, null, mContactTileLoaderListener);
+
+        // initialize the loader for this display type and destroy all others
+        final DisplayType[] loaderTypes = mDisplayType.values();
+        for (int i = 0; i < loaderTypes.length; i++) {
+            if (loaderTypes[i] == mDisplayType) {
+                getLoaderManager().initLoader(mDisplayType.ordinal(), null,
+                        mContactTileLoaderListener);
+            } else {
+                getLoaderManager().destroyLoader(loaderTypes[i].ordinal());
+            }
+        }
+    }
+
+    /**
+     * Returns whether there are any frequents with the side effect of setting the
+     * internal flag mOptionsMenuHasFrequents to the value.  This should be called externally
+     * by the activity that is about to prepare the options menu with the clear frequents
+     * menu item.
+     */
+    public boolean hasFrequents() {
+        mOptionsMenuHasFrequents = internalHasFrequents();
+        return mOptionsMenuHasFrequents;
+    }
+
+    /**
+     * Returns whether there are any frequents.
+     */
+    private boolean internalHasFrequents() {
+        return mAdapter.getNumFrequents() > 0;
     }
 
     public void setColumnCount(int columnCount) {
@@ -136,11 +166,24 @@ public class ContactTileListFragment extends Fragment {
             mAdapter.setContactCursor(data);
             mEmptyView.setText(getEmptyStateText());
             mListView.setEmptyView(mEmptyView);
+
+            // invalidate the menu options if needed
+            invalidateOptionsMenuIfNeeded();
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {}
     };
+
+    private boolean isOptionsMenuChanged() {
+        return mOptionsMenuHasFrequents != internalHasFrequents();
+    }
+
+    private void invalidateOptionsMenuIfNeeded() {
+        if (isOptionsMenuChanged()) {
+            getActivity().invalidateOptionsMenu();
+        }
+    }
 
     private String getEmptyStateText() {
         String emptyText;
@@ -164,13 +207,25 @@ public class ContactTileListFragment extends Fragment {
         mListener = listener;
     }
 
-    private ContactTileAdapter.Listener mAdapterListener =
-            new ContactTileAdapter.Listener() {
+    private ContactTileView.Listener mAdapterListener =
+            new ContactTileView.Listener() {
         @Override
         public void onContactSelected(Uri contactUri, Rect targetRect) {
             if (mListener != null) {
                 mListener.onContactSelected(contactUri, targetRect);
             }
+        }
+
+        @Override
+        public void onCallNumberDirectly(String phoneNumber) {
+            if (mListener != null) {
+                mListener.onCallNumberDirectly(phoneNumber);
+            }
+        }
+
+        @Override
+        public int getApproximateTileWidth() {
+            return getView().getWidth() / mAdapter.getColumnCount();
         }
     };
 }

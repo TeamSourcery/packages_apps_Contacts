@@ -17,17 +17,21 @@
 package com.android.contacts.quickcontact;
 
 import com.android.contacts.R;
+import com.android.contacts.test.NeededForReflection;
+import com.android.contacts.util.SchedulingUtils;
 
 import android.animation.Animator;
-import android.animation.Animator.AnimatorListener;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewPropertyAnimator;
 import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
 import android.widget.PopupWindow;
@@ -46,11 +50,37 @@ import android.widget.PopupWindow;
  * {@link PopupWindow} might work better.
  */
 public class FloatingChildLayout extends FrameLayout {
-    private static final String TAG = "FloatingChild";
+    private static final String TAG = "FloatingChildLayout";
     private int mFixedTopPosition;
     private View mChild;
     private Rect mTargetScreen = new Rect();
     private final int mAnimationDuration;
+
+    /** The phase of the background dim. This is one of the values of {@link BackgroundPhase}  */
+    private int mBackgroundPhase = BackgroundPhase.BEFORE;
+
+    private ObjectAnimator mBackgroundAnimator = ObjectAnimator.ofInt(this,
+            "backgroundColorAlpha", 0, DIM_BACKGROUND_ALPHA);
+
+    private interface BackgroundPhase {
+        public static final int BEFORE = 0;
+        public static final int APPEARING_OR_VISIBLE = 1;
+        public static final int DISAPPEARING_OR_GONE = 3;
+    }
+
+    /** The phase of the contents window. This is one of the values of {@link ForegroundPhase}  */
+    private int mForegroundPhase = ForegroundPhase.BEFORE;
+
+    private interface ForegroundPhase {
+        public static final int BEFORE = 0;
+        public static final int APPEARING = 1;
+        public static final int IDLE = 2;
+        public static final int DISAPPEARING = 3;
+        public static final int AFTER = 4;
+    }
+
+    // Black, 50% alpha as per the system default.
+    private static final int DIM_BACKGROUND_ALPHA = 0x7F;
 
     public FloatingChildLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -58,6 +88,8 @@ public class FloatingChildLayout extends FrameLayout {
         mFixedTopPosition =
                 resources.getDimensionPixelOffset(R.dimen.quick_contact_top_position);
         mAnimationDuration = resources.getInteger(android.R.integer.config_shortAnimTime);
+
+        super.setBackground(new ColorDrawable(0));
     }
 
     @Override
@@ -66,13 +98,21 @@ public class FloatingChildLayout extends FrameLayout {
         mChild.setDuplicateParentStateEnabled(true);
 
         // this will be expanded in showChild()
-        mChild.setScaleX(0.0f);
-        mChild.setScaleY(0.0f);
+        mChild.setScaleX(0.5f);
+        mChild.setScaleY(0.5f);
         mChild.setAlpha(0.0f);
     }
 
     public View getChild() {
         return mChild;
+    }
+
+    /**
+     * FloatingChildLayout manages its own background, don't set it.
+     */
+    @Override
+    public void setBackground(Drawable background) {
+        Log.wtf(TAG, "don't setBackground(), it is managed internally");
     }
 
     /**
@@ -139,47 +179,109 @@ public class FloatingChildLayout extends FrameLayout {
         child.layout(left, top, left + child.getMeasuredWidth(), top + child.getMeasuredHeight());
     }
 
-    /** Begin animating {@link #getChild()} visible. */
-    public void showChild(Runnable onAnimationEndRunnable) {
-        animateScale(false, onAnimationEndRunnable);
+    @NeededForReflection
+    public void setBackgroundColorAlpha(int alpha) {
+        setBackgroundColor(alpha << 24);
     }
 
-    /** Begin animating {@link #getChild()} invisible. */
-    public void hideChild(Runnable onAnimationEndRunnable) {
-        animateScale(true, onAnimationEndRunnable);
-    }
+    public void fadeInBackground() {
+        if (mBackgroundPhase == BackgroundPhase.BEFORE) {
+            mBackgroundPhase = BackgroundPhase.APPEARING_OR_VISIBLE;
 
-    /** Creates the open/close animation */
-    private void animateScale(boolean isExitAnimation, final Runnable onAnimationEndRunnable) {
-        mChild.setPivotX(mTargetScreen.centerX() - mChild.getLeft());
-        mChild.setPivotY(mTargetScreen.centerY() - mChild.getTop());
-        ViewPropertyAnimator animator = mChild.animate();
-        animator.setDuration(mAnimationDuration);
-        final int scaleInterpolator = isExitAnimation ? android.R.interpolator.accelerate_quint
-                : android.R.interpolator.decelerate_quint;
-        animator.setInterpolator(AnimationUtils.loadInterpolator(getContext(), scaleInterpolator));
-        final float scaleTarget = isExitAnimation ? 0.5f : 1.0f;
-        animator.scaleX(scaleTarget);
-        animator.scaleY(scaleTarget);
-        animator.alpha(isExitAnimation ? 0.0f : 1.0f);
+            createChildLayer();
 
-        if (onAnimationEndRunnable != null) {
-            animator.setListener(new AnimatorListener() {
+            SchedulingUtils.doAfterDraw(this, new Runnable() {
                 @Override
-                public void onAnimationStart(Animator animation) {}
-
-                @Override
-                public void onAnimationRepeat(Animator animation) {}
-
-                @Override
-                public void onAnimationCancel(Animator animation) {}
-
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    onAnimationEndRunnable.run();
+                public void run() {
+                    mBackgroundAnimator.setDuration(mAnimationDuration).start();
                 }
             });
         }
+    }
+
+    public void fadeOutBackground() {
+        if (mBackgroundPhase == BackgroundPhase.APPEARING_OR_VISIBLE) {
+            mBackgroundPhase = BackgroundPhase.DISAPPEARING_OR_GONE;
+            if (mBackgroundAnimator.isRunning()) {
+                mBackgroundAnimator.reverse();
+            } else {
+                ObjectAnimator.ofInt(this, "backgroundColorAlpha", DIM_BACKGROUND_ALPHA, 0).
+                        setDuration(mAnimationDuration).start();
+            }
+        }
+    }
+
+    public boolean isContentFullyVisible() {
+        return mForegroundPhase == ForegroundPhase.IDLE;
+    }
+
+    /** Begin animating {@link #getChild()} visible. */
+    public void showContent(final Runnable onAnimationEndRunnable) {
+        if (mForegroundPhase == ForegroundPhase.BEFORE) {
+            mForegroundPhase = ForegroundPhase.APPEARING;
+            animateScale(false, onAnimationEndRunnable);
+        }
+    }
+
+    /**
+     * Begin animating {@link #getChild()} invisible. Returns false if animation is not valid in
+     * this state
+     */
+    public boolean hideContent(final Runnable onAnimationEndRunnable) {
+        if (mForegroundPhase == ForegroundPhase.APPEARING ||
+                mForegroundPhase == ForegroundPhase.IDLE) {
+            mForegroundPhase = ForegroundPhase.DISAPPEARING;
+
+            createChildLayer();
+
+            animateScale(true, onAnimationEndRunnable);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private void createChildLayer() {
+        mChild.invalidate();
+        mChild.setLayerType(LAYER_TYPE_HARDWARE, null);
+        mChild.buildLayer();
+    }
+
+    /** Creates the open/close animation */
+    private void animateScale(
+            final boolean isExitAnimation,
+            final Runnable onAnimationEndRunnable) {
+        mChild.setPivotX(mTargetScreen.centerX() - mChild.getLeft());
+        mChild.setPivotY(mTargetScreen.centerY() - mChild.getTop());
+
+        final int scaleInterpolator = isExitAnimation
+                ? android.R.interpolator.accelerate_quint
+                : android.R.interpolator.decelerate_quint;
+        final float scaleTarget = isExitAnimation ? 0.5f : 1.0f;
+
+        mChild.animate()
+                .setDuration(mAnimationDuration)
+                .setInterpolator(AnimationUtils.loadInterpolator(getContext(), scaleInterpolator))
+                .scaleX(scaleTarget)
+                .scaleY(scaleTarget)
+                .alpha(isExitAnimation ? 0.0f : 1.0f)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        mChild.setLayerType(LAYER_TYPE_NONE, null);
+                        if (isExitAnimation) {
+                            if (mForegroundPhase == ForegroundPhase.DISAPPEARING) {
+                                mForegroundPhase = ForegroundPhase.AFTER;
+                                if (onAnimationEndRunnable != null) onAnimationEndRunnable.run();
+                            }
+                        } else {
+                            if (mForegroundPhase == ForegroundPhase.APPEARING) {
+                                mForegroundPhase = ForegroundPhase.IDLE;
+                                if (onAnimationEndRunnable != null) onAnimationEndRunnable.run();
+                            }
+                        }
+                    }
+                });
     }
 
     private View.OnTouchListener mOutsideTouchListener;

@@ -16,14 +16,14 @@
 
 package com.android.contacts.quickcontact;
 
+import com.android.contacts.ContactPresenceIconUtil;
 import com.android.contacts.R;
 
 import android.app.Fragment;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.provider.ContactsContract.CommonDataKinds.StructuredPostal;
-import android.provider.ContactsContract.CommonDataKinds.Email;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
-import android.provider.ContactsContract.CommonDataKinds.Website;
+import android.provider.ContactsContract.CommonDataKinds.StructuredPostal;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,7 +31,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -41,7 +41,7 @@ import java.util.List;
 public class QuickContactListFragment extends Fragment {
     private ListView mListView;
     private List<Action> mActions;
-    private LinearLayout mFragmentContainer;
+    private RelativeLayout mFragmentContainer;
     private Listener mListener;
 
     public QuickContactListFragment() {
@@ -50,7 +50,7 @@ public class QuickContactListFragment extends Fragment {
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedState) {
-        mFragmentContainer = (LinearLayout) inflater.inflate(R.layout.quickcontact_list_fragment,
+        mFragmentContainer = (RelativeLayout) inflater.inflate(R.layout.quickcontact_list_fragment,
                 container, false);
         mListView = (ListView) mFragmentContainer.findViewById(R.id.list);
         mListView.setItemsCanFocus(true);
@@ -111,6 +111,8 @@ public class QuickContactListFragment extends Fragment {
                 final ImageView alternateActionButton = (ImageView) resultView.findViewById(
                         R.id.secondary_action_button);
                 final View alternateActionDivider = resultView.findViewById(R.id.vertical_divider);
+                final ImageView presenceIconView =
+                        (ImageView) resultView.findViewById(R.id.presence_icon);
 
                 actionsContainer.setOnClickListener(mPrimaryActionClickListener);
                 actionsContainer.setTag(action);
@@ -142,6 +144,14 @@ public class QuickContactListFragment extends Fragment {
                     } else {
                         text2.setVisibility(View.VISIBLE);
                     }
+                }
+                final Drawable presenceIcon = ContactPresenceIconUtil.getPresenceIcon(
+                        getActivity(), action.getPresence());
+                if (presenceIcon != null) {
+                    presenceIconView.setImageDrawable(presenceIcon);
+                    presenceIconView.setVisibility(View.VISIBLE);
+                } else {
+                    presenceIconView.setVisibility(View.GONE);
                 }
                 return resultView;
             }
