@@ -560,8 +560,6 @@
     <string name="dialog_voicemail_not_ready_message" msgid="4384716252789515378">"Aby skonfigurować pocztę głosową, przejdź do Menu &gt; Ustawienia."</string>
     <string name="dialog_voicemail_airplane_mode_message" msgid="530922773669546093">"Aby połączyć się z pocztą głosową, najpierw wyłącz tryb samolotowy."</string>
     <string name="action_menu_overflow_description" msgid="2303272250613084574">"Więcej opcji"</string>
-
-    <!-- **** CYANOGENMOD EDITS START **** -->
     <string name="t9_sort_title">Tryb sortowania T9</string>
     <string name="t9_sort_summary">Wybierz, jak filtrować wyniki</string>
     <string name="t9_sort_name">Najpierw nazwa</string>
@@ -584,5 +582,4 @@
     <string name="dialer_ui_title">Wybieranie numeru</string>
     <string name="dialer_ui_orientation_title">Autoobracanie ekranu</string>
     <string name="dialer_ui_orientation_summary">Pozwól na automatyczny obrót ekranu</string>
-    <!-- **** CYANOGENMOD EDITS END **** -->
 </resources>
