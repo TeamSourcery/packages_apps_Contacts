@@ -16,9 +16,7 @@
 
 package com.android.contacts.list;
 
-
 import com.android.contacts.ContactsSearchManager;
-
 
 import android.app.Activity;
 import android.app.SearchManager;
@@ -175,7 +173,6 @@ public class ContactsIntentResolver {
             request.setContactUri(data);
             intent.setAction(Intent.ACTION_DEFAULT);
             intent.setData(null);
-
         }
         // Allow the title to be set to a custom String using an extra on the intent
         String title = intent.getStringExtra(UI.TITLE_EXTRA_KEY);
