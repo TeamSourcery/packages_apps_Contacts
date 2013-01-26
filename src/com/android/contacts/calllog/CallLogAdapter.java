@@ -165,6 +165,8 @@ import java.util.LinkedList;
 
     private QueryThread mCallerIdThread;
 
+    private static boolean sShouldProcess = false;
+
     /** Instance of helper class for managing views. */
     private final CallLogListItemHelper mCallLogViewsHelper;
 
@@ -206,7 +208,7 @@ import java.util.LinkedList;
 
         // Only schedule a thread-creation message if the thread hasn't been
         // created yet. This is purely an optimization, to queue fewer messages.
-        if (mCallerIdThread == null) {
+        if (mCallerIdThread == null && sShouldProcess) {
             mHandler.sendEmptyMessageDelayed(START_THREAD, START_PROCESSING_REQUESTS_DELAY_MILLIS);
         }
 
@@ -287,6 +289,7 @@ import java.util.LinkedList;
         mCallerIdThread = new QueryThread();
         mCallerIdThread.setPriority(Thread.MIN_PRIORITY);
         mCallerIdThread.start();
+        sShouldProcess = true;
     }
 
     /**
@@ -301,6 +304,7 @@ import java.util.LinkedList;
             mCallerIdThread.stopProcessing();
             mCallerIdThread.interrupt();
             mCallerIdThread = null;
+            sShouldProcess = false;
         }
     }
 
@@ -341,6 +345,7 @@ import java.util.LinkedList;
                 mRequests.notifyAll();
             }
         }
+        sShouldProcess = true;
         if (immediate) startRequestProcessing();
     }
 

@@ -161,8 +161,14 @@ public class CallDetailHistoryAdapter extends BaseAdapter {
     }
 
     private String formatDuration(long elapsedSeconds) {
+        long hours = 0;
         long minutes = 0;
         long seconds = 0;
+
+        if (elapsedSeconds >= 3600) {
+            hours = elapsedSeconds / 3600;
+            elapsedSeconds -= hours * 3600;
+            }
 
         if (elapsedSeconds >= 60) {
             minutes = elapsedSeconds / 60;
@@ -170,6 +176,7 @@ public class CallDetailHistoryAdapter extends BaseAdapter {
         }
         seconds = elapsedSeconds;
 
-        return mContext.getString(R.string.callDetailsDurationFormat, minutes, seconds);
+        return mContext.getString(R.string.callDetailsDurationFormat, hours,
+               minutes, seconds);
     }
 }
