@@ -18,7 +18,7 @@
 package com.android.contacts.callstats;
 
 import android.content.res.Resources;
-import android.content.Context;
+import android.provider.CallLog.Calls;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.telephony.PhoneNumberUtils;
 import android.text.TextUtils;
@@ -36,14 +36,14 @@ public class CallStatsDetailHelper {
     private final Resources mResources;
     private final PhoneNumberHelper mPhoneNumberHelper;
 
-    public CallStatsDetailHelper(Resources resources,
-            PhoneNumberHelper phoneNumberHelper) {
+    public CallStatsDetailHelper(Resources resources, PhoneNumberHelper phoneNumberHelper) {
         mResources = resources;
         mPhoneNumberHelper = phoneNumberHelper;
     }
 
     public void setCallStatsDetails(CallStatsDetailViews views,
-            CallStatsDetails details, int type, float percent, float ratio) {
+            CallStatsDetails details, CallStatsDetails first, CallStatsDetails total,
+            int type, boolean byDuration) {
 
         CharSequence numberFormattedLabel = null;
         // Only show a label if the number is shown and it is not a SIP address.
@@ -58,12 +58,12 @@ public class CallStatsDetailHelper {
         final CharSequence labelText;
         final CharSequence displayNumber = mPhoneNumberHelper.getDisplayNumber(
                 details.number, details.formattedNumber);
+
         if (TextUtils.isEmpty(details.name)) {
             nameText = displayNumber;
             if (TextUtils.isEmpty(details.geocode)
                     || mPhoneNumberHelper.isVoicemailNumber(details.number)) {
-                numberText = mResources
-                        .getString(R.string.call_log_empty_gecode);
+                numberText = mResources.getString(R.string.call_log_empty_gecode);
             } else {
                 numberText = details.geocode;
             }
@@ -74,54 +74,53 @@ public class CallStatsDetailHelper {
             labelText = numberFormattedLabel;
         }
 
-        float inPercent = 0;
-        float outPercent = 0;
-        switch (type) {
-            case 0:
-                inPercent = ratio
-                        * ((float) details.inDuration / (float) details
-                                .getFullDuration());
-                outPercent = ratio
-                        * ((float) details.outDuration / (float) details
-                                .getFullDuration());
-                views.barView.redIsTheNewBlue(false);
-                break;
-            case 1:
-                inPercent = ratio;
-                views.barView.redIsTheNewBlue(false);
-                break;
-            case 2:
-                outPercent = ratio;
-                views.barView.redIsTheNewBlue(false);
-                break;
-            case 3:
-                // small cheat here
-                inPercent = ratio;
-                views.barView.redIsTheNewBlue(true);
-                break;
+        float in = 0, out = 0, missed = 0;
+        float ratio = getDetailValue(details, type, byDuration) /
+                      getDetailValue(first, type, byDuration);
+
+        if (type == CallStatsQueryHandler.CALL_TYPE_ALL) {
+            float full = getDetailValue(details, type, byDuration);
+            in = getDetailValue(details, Calls.INCOMING_TYPE, byDuration) * ratio / full;
+            out = getDetailValue(details, Calls.OUTGOING_TYPE, byDuration) * ratio / full;
+            if (!byDuration) {
+                missed = getDetailValue(details, Calls.MISSED_TYPE, byDuration) * ratio / full;
+            }
+        } else if (type == Calls.INCOMING_TYPE) {
+            in = ratio;
+        } else if (type == Calls.OUTGOING_TYPE) {
+            out = ratio;
+        } else if (type == Calls.MISSED_TYPE) {
+            missed = ratio;
         }
 
-        views.barView.setRatios(inPercent, outPercent, 1.0f - inPercent
-                - outPercent);
+        views.barView.setRatios(in, out, missed);
         views.nameView.setText(nameText);
         views.numberView.setText(numberText);
         views.labelView.setText(labelText);
-        views.labelView.setVisibility(TextUtils.isEmpty(labelText) ? View.GONE
-                : View.VISIBLE);
-        if (type < 3) {
-            views.percentView.setText(String.format("%.1f%%", percent));
+        views.labelView.setVisibility(TextUtils.isEmpty(labelText) ? View.GONE : View.VISIBLE);
+
+        if (byDuration && type == Calls.MISSED_TYPE) {
+            views.percentView.setText(getCallCountString(mResources, details.missedCount));
         } else {
-            views.percentView.setText(mResources.getQuantityString(
-                    R.plurals.call, details.missedCount, details.missedCount));
+            float percent = getDetailValue(details, type, byDuration) * 100F /
+                            getDetailValue(total, type, byDuration);
+            views.percentView.setText(String.format("%.1f%%", percent));
         }
     }
 
-    public void setCallStatsDetailHeader(TextView nameView,
-            CallStatsDetails details) {
+    private float getDetailValue(CallStatsDetails details, int type, boolean byDuration) {
+        if (byDuration) {
+            return (float) details.getRequestedDuration(type);
+        } else {
+            return (float) details.getRequestedCount(type);
+        }
+    }
+
+    public void setCallStatsDetailHeader(TextView nameView, CallStatsDetails details) {
         final CharSequence nameText;
         final CharSequence displayNumber = mPhoneNumberHelper.getDisplayNumber(
-                details.number,
-                mResources.getString(R.string.recentCalls_addToContact));
+                details.number, mResources.getString(R.string.recentCalls_addToContact));
+
         if (TextUtils.isEmpty(details.name)) {
             nameText = displayNumber;
         } else {
@@ -131,29 +130,41 @@ public class CallStatsDetailHelper {
         nameView.setText(nameText);
     }
 
-    public static String getDurationString(Context c, int type, long duration) {
-        long elapsed = duration;
-        if (type == 3) {
-            return c.getResources().getQuantityString(R.plurals.call,
-                    (int) elapsed, (int) elapsed);
+    public static String getCallCountString(Resources res, long count) {
+        return res.getQuantityString(R.plurals.call, (int) count, (int) count);
+    }
+
+    public static String getDurationString(Resources res, long duration, boolean includeSeconds) {
+        int hours, minutes, seconds;
+
+        hours = (int) (duration / 3600);
+        duration -= (long) hours * 3600;
+        minutes = (int) (duration / 60);
+        duration -= (long) minutes * 60;
+        seconds = (int) duration;
+
+        if (!includeSeconds) {
+            if (seconds >= 30) {
+                minutes++;
+            }
+            if (minutes >= 60) {
+                hours++;
+            }
         }
 
-        long hours = 0;
-        long minutes = 0;
-        long seconds = 0;
+        boolean dispHours = hours > 0;
+        boolean dispMinutes = minutes > 0 || (!includeSeconds && hours == 0);
+        boolean dispSeconds = includeSeconds && (seconds > 0 || (hours == 0 && minutes == 0));
 
-        if (elapsed >= 3600) {
-            hours = elapsed / 3600;
-            elapsed -= hours * 3600;
-        }
+        final String hourString = dispHours ?
+            res.getQuantityString(R.plurals.hour, hours, hours) : null;
+        final String minuteString = dispMinutes ?
+            res.getQuantityString(R.plurals.minute, minutes, minutes) : null;
+        final String secondString = dispSeconds ?
+            res.getQuantityString(R.plurals.second, seconds, seconds) : null;
 
-        if (elapsed >= 60) {
-            minutes = elapsed / 60;
-            elapsed -= minutes * 60;
-        }
-        seconds = elapsed;
-
-        return c.getResources().getString(R.string.callDetailsDurationFormat,
-                hours, minutes, seconds);
+        int index = ((dispHours ? 4 : 0) | (dispMinutes ? 2 : 0) | (dispSeconds ? 1 : 0)) - 1;
+        String[] formats = res.getStringArray(R.array.call_stats_duration);
+        return String.format(formats[index], hourString, minuteString, secondString);
     }
 }

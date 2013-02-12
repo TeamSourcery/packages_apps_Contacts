@@ -103,4 +103,10 @@
     <color name="social_widget_bg">#00000000</color>
     <color name="contact_detail_fragment">#ffffff</color>
 
+    <!-- Colors for incoming and outgoing calls in the call statistics -->
+    <color name="call_stats_incoming">#33b5e5</color>
+    <color name="call_stats_outgoing">#99cc00</color>
+    <color name="call_stats_missed">#eb1313</color>
+    <color name="call_stats_bar_background">#88888888</color>
+ 
 </resources>
