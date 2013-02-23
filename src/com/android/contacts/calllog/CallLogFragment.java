@@ -315,12 +315,6 @@ public class CallLogFragment extends ListFragment
     public void startCallsQuery() {
         mAdapter.setLoading(true);
         mCallLogQueryHandler.fetchCalls(mCallTypeFilter);
-
-        if (mShowingVoicemailOnly) {
-            mShowingVoicemailOnly = false;
-            getActivity().invalidateOptionsMenu();
-        }
-
     }
 
     private void startVoicemailStatusQuery() {
@@ -340,9 +334,6 @@ public class CallLogFragment extends ListFragment
         // menu items are ready if the first item is non-null.
         if (itemDeleteAll != null) {
             itemDeleteAll.setEnabled(mAdapter != null && !mAdapter.isEmpty());
-
-            menu.findItem(R.id.show_voicemails_only).setVisible(mVoicemailSourcesAvailable);
-
 
             showAllFilterMenuOptions(menu);
             hideCurrentFilterMenuOption(menu);
@@ -372,7 +363,6 @@ public class CallLogFragment extends ListFragment
             case Calls.VOICEMAIL_TYPE:
                 menu.findItem(R.id.show_voicemails_only);
                 break;
-
         }
         if (item != null) {
             item.setVisible(false);
@@ -418,8 +408,6 @@ public class CallLogFragment extends ListFragment
                 registerPhoneCallReceiver();
                 mCallLogQueryHandler.fetchCalls(Calls.VOICEMAIL_TYPE);
                 updateFilterTypeAndHeader(Calls.VOICEMAIL_TYPE);
-                mShowingVoicemailOnly = true;
-
                 return true;
 
             case R.id.show_all_calls:
@@ -427,8 +415,6 @@ public class CallLogFragment extends ListFragment
                 unregisterPhoneCallReceiver();
                 mCallLogQueryHandler.fetchCalls(CallLogQueryHandler.CALL_TYPE_ALL);
                 updateFilterTypeAndHeader(CallLogQueryHandler.CALL_TYPE_ALL);
-                mShowingVoicemailOnly = false;
-
                 return true;
 
             default:
