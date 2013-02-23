@@ -41,6 +41,7 @@ import com.android.contacts.test.NeededForTesting;
 import com.android.contacts.util.Constants;
 import com.google.common.annotations.VisibleForTesting;
 
+
 import java.util.List;
 
 public class ContactsUtils {

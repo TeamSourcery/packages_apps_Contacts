@@ -21,7 +21,11 @@ import android.provider.CallLog.Calls;
 import android.telephony.PhoneNumberUtils;
 
 import com.android.common.widget.GroupingListAdapter;
+
 import com.android.contacts.ContactsUtils;
+
+import com.google.common.annotations.VisibleForTesting;
+
 
 /**
  * Groups together calls in the call log.

@@ -65,8 +65,8 @@
     <string name="menu_splitAggregate" msgid="8368636463748691868">"Oddělit"</string>
     <string name="menu_editGroup" msgid="5062005185370983720">"Upravit"</string>
     <string name="menu_deleteGroup" msgid="3486380004411482874">"Smazat"</string>
-    <string name="menu_new_contact_action_bar" msgid="8887818026717394343">"Nový"</string>
-    <string name="menu_new_group_action_bar" msgid="5055346725617932394">"Nová"</string>
+    <string name="menu_new_contact_action_bar" msgid="7263362129442119188">"Přidat kontakt"</string>
+    <string name="menu_new_group_action_bar" msgid="3520232877587377175">"Přidat skupinu"</string>
     <string name="splitConfirmation_title" msgid="633640935430370530">"Rozdělit kontakt?"</string>
     <string name="splitConfirmation" msgid="740190210499587175">"Tento kontakt bude rozdělen do několika kontaktů."</string>
     <string name="menu_joinAggregate" msgid="5027981918265667970">"Spojit"</string>
@@ -162,6 +162,8 @@
     <string name="contactsAllLabel" msgid="6479708629170672169">"Všechny kontakty"</string>
     <string name="contactsGroupsLabel" msgid="2841971472518003524">"Skupiny"</string>
     <string name="contactsFavoritesLabel" msgid="8417039765586853670">"Oblíbené"</string>
+
+    <string name="dialerAllContactsLabel" msgid="1025920923112988336">"Oblíbené kontakty a všechny kontakty"</string>
 
     <string name="dialerIconLabel" msgid="6500826552823403796">"Telefon"</string>
 
@@ -637,8 +639,10 @@
     <string name="call_log_incoming_header" msgid="2787722299753674684">"Jen příchozí hovory"</string>
     <string name="call_log_outgoing_header" msgid="761009180766735769">"Jen odchozí hovory"</string>
     <string name="call_log_missed_header" msgid="8017148056610855956">"Jen zmeškané hovory"</string>
-    <string name="voicemail_status_voicemail_not_available" msgid="3021980206152528883">"Nelze se připojit k hlasové schránce."</string>
-    <string name="voicemail_status_messages_waiting" msgid="7113421459602803605">"V hlasové schránce jsou nové zprávy, ale nelze se k ní připojit."</string>
+
+   
+    <string name="voicemail_status_voicemail_not_available" msgid="3021980206152528883">"Nelze se připojit k serveru hlasové schránky."</string>
+    <string name="voicemail_status_messages_waiting" msgid="7113421459602803605">"Nové zprávy v hlasové schránce. K serveru se nelze připojit."</string>
 
     <string name="voicemail_status_configure_voicemail" msgid="3738537770636895689">"Nastavte hlasovou schránku."</string>
     <string name="voicemail_status_audio_not_available" msgid="3369618334553341626">"Zvuk není k dispozici."</string>
@@ -653,11 +657,11 @@
 
     <string name="group_name_hint" msgid="238359485263401293">"Název skupiny"</string>
 
-    <string name="nfc_vcard_file_name" msgid="2823095213265993609">"Přijat kontakt přes NFC"</string>
+    <string name="nfc_vcard_file_name" msgid="2823095213265993609">"Kontakt přijatý přes NFC"</string>
     <string name="menu_show_outgoing_only" msgid="1965570298133301970">"Zobrazit pouze odchozí"</string>
     <string name="menu_show_incoming_only" msgid="7534206815238877417">"Zobrazit pouze příchozí"</string>
     <string name="menu_show_missed_only" msgid="154473166059743996">"Zobrazit pouze zmeškané"</string>
-    <string name="menu_show_voicemails_only" msgid="1898421289561435703">"Zobrazit pouze hlas. zprávy"</string>
+    <string name="menu_show_voicemails_only" msgid="1898421289561435703">"Zobrazit pouze hlas. schránku"</string>
 
     <string name="menu_show_all_calls" msgid="7560347482073345885">"Zobrazit všechny hovory"</string>
 
@@ -700,4 +704,5 @@
     <string name="dialog_voicemail_airplane_mode_message" msgid="530922773669546093">"Chcete-li volat hlasovou schránku, nejdříve vypněte režim V letadle."</string>
     <string name="menu_export_database" msgid="2659719297530170820">"Exportovat soubory databáze"</string>
     <string name="action_menu_overflow_description" msgid="2303272250613084574">"Více možností"</string>
+    <string name="expand_collapse_name_fields_description" msgid="8682630859539604311">"Rozbalit nebo sbalit pole jména"</string>
 </resources>
