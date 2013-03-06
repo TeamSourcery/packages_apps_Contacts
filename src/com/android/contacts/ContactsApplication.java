@@ -23,7 +23,6 @@ import com.android.contacts.test.InjectedServices;
 import com.android.contacts.util.Constants;
 import com.google.common.annotations.VisibleForTesting;
 
-
 import android.app.Application;
 import android.app.FragmentManager;
 import android.app.LoaderManager;

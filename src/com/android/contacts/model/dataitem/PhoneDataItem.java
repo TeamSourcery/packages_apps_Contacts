@@ -70,7 +70,6 @@ public class PhoneDataItem extends DataItem {
         }
     }
 
-
     /**
      * Returns the formatted phone number (if already computed using {@link
      * #computeFormattedPhoneNumber}). Otherwise this method returns the unformatted phone number.
@@ -84,5 +83,4 @@ public class PhoneDataItem extends DataItem {
             return getNumber();
         }
     }
-
 }

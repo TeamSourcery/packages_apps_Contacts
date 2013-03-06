@@ -85,7 +85,7 @@ public class PhoneCallDetails implements CallDetailHeader.Data {
         this.contactUri = contactUri;
         this.photoUri = photoUri;
     }
-   
+
     @Override
     public CharSequence getName() {
         return name;

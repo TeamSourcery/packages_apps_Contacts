@@ -206,7 +206,6 @@ public class DataItem {
         return actionBody == null ? null : actionBody.toString();
     }
 
-
     /**
      * This builds the data string(intended for display) depending on the type of data item. It
      * returns the same value as {@link #buildDataString} by default, but certain data items can
@@ -217,7 +216,6 @@ public class DataItem {
     public String buildDataStringForDisplay() {
         return buildDataString();
     }
-
 
     public String getKindString() {
         final DataKind kind = getDataKind();

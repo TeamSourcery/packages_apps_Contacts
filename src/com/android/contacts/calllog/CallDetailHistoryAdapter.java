@@ -173,10 +173,10 @@ public class CallDetailHistoryAdapter extends BaseAdapter {
         if (elapsedSeconds >= 60) {
             minutes = elapsedSeconds / 60;
             elapsedSeconds -= minutes * 60;
-        }
+            }
         seconds = elapsedSeconds;
 
         return mContext.getString(R.string.callDetailsDurationFormat, hours,
-               minutes, seconds);
+                minutes, seconds);
     }
 }

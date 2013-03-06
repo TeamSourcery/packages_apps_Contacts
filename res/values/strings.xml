@@ -23,7 +23,7 @@
     <string name="people">People</string>
 
     <string name="t9_loading">Loading\u2026</string>
-    <string name="t9_default_sort">1</string>
+    <string name="t9_default_sort" translatable="false">1</string>
     <string name="t9_sort_title">T9 sorting mode</string>
     <string name="t9_sort_summary">Choose how to filter T9 results</string>
     <string name="t9_sort_name">Name matches first</string>
@@ -593,6 +593,9 @@
     <!-- Title bar for call detail screen -->
     <string name="callDetailTitle">Call details</string>
 
+    <!-- Title bar for call stat detail screen -->
+    <string name="callStatsDetailTitle">Call stat details</string>
+
     <!-- Toast for call detail screen when couldn't read the requested details -->
     <string name="toast_call_detail_error">Couldn\'t read details for the requested call.</string>
 
@@ -620,7 +623,9 @@
     <!-- Action string for returning a missed call in the call log -->
     <string name="returnCall">Return call</string>
 
-    
+    <!-- A nicely formatted call duration displayed when viewing call details. For example "5 hrs 42 mins 28 secs" -->
+    <string name="callDetailsDurationFormat"><xliff:g id="hours" example="5">%s</xliff:g> hrs <xliff:g id="minutes" example="42">%s</xliff:g> mins <xliff:g id="seconds" example="28">%s</xliff:g> secs</string>
+
     <!-- The text displayed on the divider for the Favorites tab in People app indicating that items below it are frequently contacted [CHAR LIMIT = 39] -->
     <string name="favoritesFrequentContacted">Frequently contacted</string>
 
@@ -1023,6 +1028,9 @@
 
     <!-- Menu item label for call settings [CHAR LIMIT=30] -->
     <string name="call_settings">Settings</string>
+
+    <string name="call_stats">Call statistics</string>
+    <string name="call_stats_refresh">Refresh</string>
 
     <!-- Title for the sms disambiguation dialog -->
     <string name="sms_disambig_title">Choose number</string>
@@ -1475,6 +1483,8 @@
     <!-- Title of the settings activity [CHAR LIMIT=64] -->
     <string name="activity_title_settings">Settings</string>
 
+    <string name="activity_title_call_stats">Call statistics</string>
+
     <!-- Title of the activity that allows the uesr to filter the list of contacts displayed according to account [CHAR LIMIT=25] -->
     <string name="activity_title_contacts_filter">Contacts to display</string>
 
@@ -1877,46 +1887,36 @@ connection to the voicemail server is lost. [CHAR LIMIT=64] -->
          [CHAR LIMIT=NONE] -->
     <string name="action_menu_overflow_description" msgid="2295659037509008453">More options</string>
 
+    <string name="direct_call_title">Direct Call</string>
+    <string name="direct_call_summary">Picking up the phone calls the current dialled contact</string>
 
+    <string name="call_stats_nav_all">All</string>
+    <string name="call_stats_nav_incoming">Incoming</string>
+    <string name="call_stats_nav_outgoing">Outgoing</string>
+    <string name="call_stats_nav_missed">Missed</string>
+    <string name="call_stats_incoming">Incoming: <xliff:g id="percent">%d</xliff:g>%%</string>
+    <string name="call_stats_outgoing">Outgoing: <xliff:g id="percent">%d</xliff:g>%%</string>
+    <string name="call_stats_missed">Missed</string>
+    <string name="call_stats_missed_percent">Missed: <xliff:g id="percent">%d</xliff:g>%%</string>
+    <string name="call_stats_header_total">Total: <xliff:g id="call_count">%s</xliff:g>, <xliff:g id="duration">%s</xliff:g></string>
+    <string name="call_stats_header_total_callsonly">Total: <xliff:g id="call_count">%s</xliff:g></string>
+    <string name="call_stats_filter_from">Start date</string>
+    <string name="call_stats_filter_to">End date</string>
+    <string name="call_stats_filter_picker_title">Filter range</string>
 
-   <!-- Strings for caller statistics -->
-   <!-- Title bar for call stat detail screen -->
-    <string name="callStatsDetailTitle">Call stat details</string>
+    <string name="date_quick_selection">Quick selection</string>
+    <string name="date_qs_currentmonth">Current month</string>
+    <string name="date_qs_currentquarter">Current quarter</string>
+    <string name="date_qs_currentyear">Current year</string>
+    <string name="date_qs_lastweek">Last week</string>
+    <string name="date_qs_lastmonth">Last month</string>
+    <string name="date_qs_lastquarter">Last quarter</string>
+    <string name="date_qs_lastyear">Last year</string>
 
-   <!-- A nicely formatted call duration displayed when viewing call details. For example "42 mins 28 secs" -->
-    <string name="callDetailsDurationFormat"><xliff:g id="minutes" example="42">%s</xliff:g> mins <xliff:g id="seconds" example="28">%s</xliff:g> secs</string>
-
-   <string name="call_stats">Call statistics</string>
-   <string name="call_stats_refresh">Refresh</string>
-   <string name="activity_title_call_stats">Call statistics</string>
-
-   <string name="call_stats_nav_all">All</string>
-   <string name="call_stats_nav_incoming">Incoming</string>
-   <string name="call_stats_nav_outgoing">Outgoing</string>
-   <string name="call_stats_nav_missed">Missed</string>
-   <string name="call_stats_incoming">Incoming: <xliff:g id="percent">%d</xliff:g>%%</string>
-   <string name="call_stats_outgoing">Outgoing: <xliff:g id="percent">%d</xliff:g>%%</string>
-   <string name="call_stats_missed">Missed</string>
-   <string name="call_stats_missed_percent">Missed: <xliff:g id="percent">%d</xliff:g>%%</string>
-   <string name="call_stats_header_total">Total: <xliff:g id="call_count">%s</xliff:g>, <xliff:g id="duration">%s</xliff:g></string>
-   <string name="call_stats_header_total_callsonly">Total: <xliff:g id="call_count">%s</xliff:g></string>
-   <string name="call_stats_filter_from">Start date</string>
-   <string name="call_stats_filter_to">End date</string>
-   <string name="call_stats_filter_picker_title">Filter range</string>
-
-   <string name="date_quick_selection">Quick selection</string>
-   <string name="date_qs_currentmonth">Current month</string>
-   <string name="date_qs_currentquarter">Current quarter</string>
-   <string name="date_qs_currentyear">Current year</string>
-   <string name="date_qs_lastweek">Last week</string>
-   <string name="date_qs_lastmonth">Last month</string>
-   <string name="date_qs_lastquarter">Last quarter</string>
-   <string name="date_qs_lastyear">Last year</string>
-   
-   <string name="call_stats_date_filter">Adjust time range</string>
-   <string name="call_stats_reset_filter">Reset time range</string>
-   <string name="call_stats_sort_by_duration">Sort by call duration</string>
-   <string name="call_stats_sort_by_count">Sort by call count</string>
+    <string name="call_stats_date_filter">Adjust time range</string>
+    <string name="call_stats_reset_filter">Reset time range</string>
+    <string name="call_stats_sort_by_duration">Sort by call duration</string>
+    <string name="call_stats_sort_by_count">Sort by call count</string>
 
     <!-- 0:           sec
          1:      min
@@ -1954,7 +1954,6 @@ connection to the voicemail server is lost. [CHAR LIMIT=64] -->
         <item quantity="other">%d calls</item>
     </plurals>
 
-
     <!-- Content description for the expand or collapse name fields button.
          Clicking this button causes the name editor to toggle between showing
          a single field where the entire name is edited at once, or multiple
@@ -1962,5 +1961,4 @@ connection to the voicemail server is lost. [CHAR LIMIT=64] -->
          Middle Name, Last Name, Name Suffix).
          [CHAR LIMIT=NONE] -->
     <string name="expand_collapse_name_fields_description">Expand or collapse name fields</string>
-
 </resources>

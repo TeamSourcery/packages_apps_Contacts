@@ -33,7 +33,6 @@ import com.android.contacts.PhoneCallDetails;
 import com.android.contacts.PhoneCallDetailsHelper;
 import com.android.contacts.R;
 import com.android.contacts.calllog.CallLogAdapterHelper.NumberWithCountryIso;
-import com.android.contacts.util.ExpirableCache;
 import com.android.contacts.util.UriUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;

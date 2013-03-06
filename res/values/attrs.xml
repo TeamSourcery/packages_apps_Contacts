@@ -116,7 +116,7 @@
         <attr name="anchorAtBottom" format="boolean" />
         <attr name="anchoredView" format="reference" />
     </declare-styleable>
- 
+
     <declare-styleable name="LinearColorBar">
         <attr name="redColor" format="color" />
         <attr name="greenColor" format="color" />

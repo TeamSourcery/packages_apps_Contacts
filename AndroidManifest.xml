@@ -664,7 +664,7 @@
             </intent-filter>
         </activity>
 
-       <!-- "Call Statistics" UI, used only on voice-capable phone devices. -->
+        <!-- "Call Statistics" UI, used only on voice-capable phone devices. -->
         <activity android:name=".callstats.CallStatsActivity"
                 android:taskAffinity="android.task.contacts.phone"
                 android:icon="@mipmap/ic_launcher_phone"

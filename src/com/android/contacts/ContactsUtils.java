@@ -41,7 +41,6 @@ import com.android.contacts.test.NeededForTesting;
 import com.android.contacts.util.Constants;
 import com.google.common.annotations.VisibleForTesting;
 
-
 import java.util.List;
 
 public class ContactsUtils {
@@ -225,7 +224,7 @@ public class ContactsUtils {
         return intent;
     }
 
-     /**
+    /**
      * Checks whether two phone numbers resolve to the same phone.
      */
     public static boolean phoneNumbersEqual(String number1, String number2) {
@@ -264,7 +263,6 @@ public class ContactsUtils {
 
         return userinfo1.equals(userinfo2) && rest1.equalsIgnoreCase(rest2);
     }
-
 
     /**
      * Return Uri with an appropriate scheme, accepting Voicemail, SIP, and usual phone call

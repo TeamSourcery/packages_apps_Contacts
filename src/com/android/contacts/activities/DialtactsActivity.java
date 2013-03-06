@@ -1078,12 +1078,14 @@ public class DialtactsActivity extends TransactionSafeActivity
         final MenuItem addContactOptionMenuItem = menu.findItem(R.id.add_contact);
         final MenuItem callSettingsMenuItem = menu.findItem(R.id.menu_call_settings);
         final MenuItem emptyRightMenuItem = menu.findItem(R.id.empty_right_menu_item);
+        final MenuItem callStatsMenuItem = menu.findItem(R.id.menu_call_stats);
 
         // prepare the menu items
         searchMenuItem.setVisible(true);
         filterOptionMenuItem.setVisible(true);
         addContactOptionMenuItem.setVisible(true);
         callSettingsMenuItem.setVisible(true);
+        callStatsMenuItem.setVisible(true);
         emptyRightMenuItem.setVisible(false);
     }
 
@@ -1279,7 +1281,7 @@ public class DialtactsActivity extends TransactionSafeActivity
         return intent;
     }
 
-     public static Intent getCallStatsIntent() {
+    public static Intent getCallStatsIntent() {
         final Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.setClassName(CONTACTS_PACKAGE, CALL_STATS_CLASS_NAME);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);

@@ -23,10 +23,11 @@
     <!-- This should come after the other menus in CallLog and Dialpad -->
 
     <item
-       android:id="@+id/menu_call_stats"
-       android:title="@string/call_stats"
-       android:showAsAction="withText"
-       android:orderInCategory="2" />
+        android:id="@+id/menu_call_stats"
+        android:title="@string/call_stats"
+        android:showAsAction="withText"
+        android:orderInCategory="2" />
+
     <item
         android:id="@+id/menu_call_settings"
         android:title="@string/call_settings"
