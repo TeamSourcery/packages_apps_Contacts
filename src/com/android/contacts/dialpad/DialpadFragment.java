@@ -29,9 +29,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.PorterDuff.Mode;
 import android.hardware.SensorEventListener;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -77,6 +80,7 @@ import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.LinearLayout.LayoutParams;
 import android.widget.ListView;
@@ -90,6 +94,7 @@ import com.android.contacts.ContactsUtils;
 import com.android.contacts.R;
 import com.android.contacts.SpecialCharSequenceMgr;
 import com.android.contacts.activities.DialtactsActivity;
+import com.android.contacts.dialpad.DialpadImageButton;
 import com.android.contacts.dialpad.T9SearchCache.ContactItem;
 import com.android.contacts.dialpad.T9SearchCache.T9Adapter;
 import com.android.contacts.dialpad.T9SearchCache.T9SearchResult;
@@ -148,6 +153,8 @@ public class DialpadFragment extends Fragment
      * released.
      */
     private int mDialpadPressCount;
+
+    private ImageButton dp1, dp2, dp3, dp4, dp5, dp6, dp7, dp8, dp9, dp0, dppound, dpstar, dpdelete, dpdial;
 
     private View mDialButtonContainer;
     private View mDialButton;
@@ -290,6 +297,8 @@ public class DialpadFragment extends Fragment
     public void onCreate(Bundle state) {
         super.onCreate(state);
 
+	PreferenceManager.setDefaultValues(getActivity(), R.xml.preference_color_options, false);
+
         ContactPhotoManager photoLoader = ContactPhotoManager.getInstance(getActivity());
         photoLoader.preloadPhotosInBackground();
 
@@ -368,6 +377,137 @@ public class DialpadFragment extends Fragment
 
         // Load up the resources for the text field.
         Resources r = getResources();
+
+	dp1 = (ImageButton) fragmentView.findViewById(R.id.one);
+	dp2 = (ImageButton) fragmentView.findViewById(R.id.two);
+	dp3 = (ImageButton) fragmentView.findViewById(R.id.three);
+	dp4 = (ImageButton) fragmentView.findViewById(R.id.four);
+	dp5 = (ImageButton) fragmentView.findViewById(R.id.five);
+	dp6 = (ImageButton) fragmentView.findViewById(R.id.six);
+	dp7 = (ImageButton) fragmentView.findViewById(R.id.seven);
+	dp8 = (ImageButton) fragmentView.findViewById(R.id.eight);
+	dp9 = (ImageButton) fragmentView.findViewById(R.id.nine);
+	dp0 = (ImageButton) fragmentView.findViewById(R.id.zero);
+	dppound = (ImageButton) fragmentView.findViewById(R.id.pound);
+	dpstar = (ImageButton) fragmentView.findViewById(R.id.star);
+	dpdelete = (ImageButton) fragmentView.findViewById(R.id.deleteButton);
+	dpdial = (ImageButton) fragmentView.findViewById(R.id.dialButton);
+        mDigits = (EditText) fragmentView.findViewById(R.id.digits);
+	Context context = getActivity();
+	SharedPreferences app_preferences = PreferenceManager.getDefaultSharedPreferences(context);
+	String preference_color_all = app_preferences.getString("KeyColorAll", "");
+//	System.out.println("NullChecker KeyColor All String - " + preference_color_all);
+	String preference_color_one = app_preferences.getString("KeyColorOne", "");
+//	System.out.println("NullChecker KeyColor 1 String - " + preference_color_one);
+	String preference_color_two = app_preferences.getString("KeyColorTwo", "");
+//	System.out.println("NullChecker KeyColor 2 String - " + preference_color_two);
+	String preference_color_three = app_preferences.getString("KeyColorThree", "");
+//	System.out.println("NullChecker KeyColor 3 String - " + preference_color_three);
+	String preference_color_four = app_preferences.getString("KeyColorFour", "");
+//	System.out.println("NullChecker KeyColor 4 String - " + preference_color_four);
+	String preference_color_five = app_preferences.getString("KeyColorFive", "");
+//	System.out.println("NullChecker KeyColor 5 String - " + preference_color_five);
+	String preference_color_six = app_preferences.getString("KeyColorSix", "");
+//	System.out.println("NullChecker KeyColor 6 String - " + preference_color_six);
+	String preference_color_seven = app_preferences.getString("KeyColorSeven", "");
+//	System.out.println("NullChecker KeyColor 7 String - " + preference_color_seven);
+	String preference_color_eight = app_preferences.getString("KeyColorEight", "");
+//	System.out.println("NullChecker KeyColor 8 String - " + preference_color_eight);
+	String preference_color_nine = app_preferences.getString("KeyColorNine", "");
+//	System.out.println("NullChecker KeyColor 9 String - " + preference_color_nine);
+	String preference_color_zero = app_preferences.getString("KeyColorZero", "");
+//	System.out.println("NullChecker KeyColor 0 String - " + preference_color_zero);
+	String preference_color_star = app_preferences.getString("KeyColorStar", "");
+//	System.out.println("NullChecker KeyColor * String - " + preference_color_star);
+	String preference_color_pound = app_preferences.getString("KeyColorPound", "");
+//	System.out.println("NullChecker KeyColor # String - " + preference_color_pound);
+	String preference_color_dialButton = app_preferences.getString("KeyColorDialButton", "");
+//	System.out.println("NullChecker KeyColor Call String - " + preference_color_dialButton);
+	String preference_color_deleteButton = app_preferences.getString("KeyColorDeleteButton", "");
+//	System.out.println("NullChecker KeyColor Delete String - " + preference_color_deleteButton);
+	String preference_color_numberText = app_preferences.getString("KeyColorNumberText", "");
+//	System.out.println("NullChecker KeyColor NumberText String - " + preference_color_numberText);
+	if(PreferenceManager.getDefaultSharedPreferences(getActivity()).getBoolean("all_keys_pref", false)) {
+		if (preference_color_all != "") {
+            		dp1.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp2.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp3.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp4.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp5.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp6.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp7.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp8.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp9.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dp0.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dppound.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+            		dpstar.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+			dpdial.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+			dpdelete.setColorFilter(Color.parseColor(preference_color_all), Mode.MULTIPLY);
+			mDigits.setTextColor(Color.parseColor(preference_color_all));
+            	}else{
+            	}
+		}else{
+		if (preference_color_one != "") {
+            		dp1.setColorFilter(Color.parseColor(preference_color_one), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_two != "") {
+            		dp2.setColorFilter(Color.parseColor(preference_color_two), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_three != "") {
+            		dp3.setColorFilter(Color.parseColor(preference_color_three), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_four != "") {
+            		dp4.setColorFilter(Color.parseColor(preference_color_four), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_five != "") {
+            		dp5.setColorFilter(Color.parseColor(preference_color_five), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_six != "") {
+            		dp6.setColorFilter(Color.parseColor(preference_color_six), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_seven != "") {
+            		dp7.setColorFilter(Color.parseColor(preference_color_seven), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_eight != "") {
+            		dp8.setColorFilter(Color.parseColor(preference_color_eight), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_nine != "") {
+            		dp9.setColorFilter(Color.parseColor(preference_color_nine), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_zero != "") {
+            		dp0.setColorFilter(Color.parseColor(preference_color_zero), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_pound != "") {
+            		dppound.setColorFilter(Color.parseColor(preference_color_pound), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_star != "") {
+            		dpstar.setColorFilter(Color.parseColor(preference_color_star), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_dialButton != "") {
+            		dpdial.setColorFilter(Color.parseColor(preference_color_dialButton), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_deleteButton != "") {
+            		dpdelete.setColorFilter(Color.parseColor(preference_color_deleteButton), Mode.MULTIPLY);
+            	}else{
+            	}
+		if (preference_color_numberText != "") {
+            		mDigits.setTextColor(Color.parseColor(preference_color_numberText));
+            	}else{
+            	}
+		}
 
         mDigitsContainer = fragmentView.findViewById(R.id.digits_container);
         mDigits = (EditText) fragmentView.findViewById(R.id.digits);

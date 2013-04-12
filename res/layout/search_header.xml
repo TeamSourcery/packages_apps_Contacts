@@ -23,4 +23,4 @@
     android:paddingTop="24dip"
     android:gravity="center_horizontal"
     android:textAppearance="?android:attr/textAppearanceLarge"
-    android:textColor="?android:attr/textColorSecondary" />
+    android:textColor="@*android:color/sourceryTextColor2" />

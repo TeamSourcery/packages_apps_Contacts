@@ -30,14 +30,14 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="48dip"
             android:textAppearance="?android:attr/textAppearanceLarge"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textColor="@*android:color/sourceryTextColor2" />
 
         <TextView
             android:id="@+id/secondary_message"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
-            android:textColor="?android:attr/textColorSecondary"
+            android:textColor="@*android:color/sourceryTextColor2"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="@dimen/no_accounts_message_margin" />
 

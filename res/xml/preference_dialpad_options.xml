@@ -46,4 +46,9 @@
         android:title="@string/direct_call_title"
         android:summary="@string/direct_call_summary"
         android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_choose_colors"
+        android:title="@string/pref_category_color" />
+		
 </PreferenceScreen>

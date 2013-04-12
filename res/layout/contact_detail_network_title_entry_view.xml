@@ -50,6 +50,6 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:textAppearance="?android:attr/textAppearanceMedium"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textColor="@*android:color/sourceryTextColor2" />
     </LinearLayout>
 </FrameLayout>

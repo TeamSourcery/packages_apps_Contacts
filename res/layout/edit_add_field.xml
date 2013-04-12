@@ -27,6 +27,6 @@
         android:layout_height="wrap_content"
         android:duplicateParentState="true"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:textColor="?android:attr/textColorSecondary"
+        android:textColor="@*android:color/sourceryTextColor2"
         android:text="@string/add_new_entry_for_section" />
 </FrameLayout>

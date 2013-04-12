@@ -393,6 +393,15 @@
             </intent-filter>
         </activity>
 
+	    <!-- JohnnyB -->
+        <activity
+            android:name=".preference.ColorPreferenceActivity"
+            android:label="@string/dialer_ui_title"
+            android:icon="@mipmap/ic_launcher_phone"
+            android:theme="@android:style/Theme.Holo.DialogWhenLarge">
+        </activity>
+		<!-- JohnnyB -->
+
         <!-- List of groups -->
         <activity android:name=".activities.GroupBrowserActivity"
             android:label="@string/contactsGroupsLabel"

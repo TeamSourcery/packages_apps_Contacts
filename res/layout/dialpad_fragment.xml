@@ -31,7 +31,7 @@
         android:layout_weight="0.1"
         android:layout_marginTop="@dimen/dialpad_vertical_margin"
         android:gravity="center"
-        android:background="@drawable/dialpad_background" >
+        android:background="#00000000" >
 
         <com.android.contacts.dialpad.DigitsEditText
             android:id="@+id/digits"
@@ -40,7 +40,7 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:textAppearance="@style/DialtactsDigitsTextAppearance"
-            android:textColor="?android:attr/textColorPrimary"
+            android:textColor="@*android:color/sourceryTextColor1"
             android:nextFocusRight="@+id/overflow_menu"
             android:background="@android:color/transparent" />
 
@@ -60,7 +60,7 @@
         android:layout_width="match_parent"
         android:layout_height="0px"
         android:id="@+id/t9topbar"
-        android:background="@drawable/dialpad_background"
+        android:background="#00000000"
         android:gravity="center_vertical"
         android:layout_weight="0.1">
         <ListView
@@ -96,7 +96,7 @@
             android:layout_width="match_parent"
             android:id="@+id/t9list"
             android:visibility="gone"
-            android:background="@drawable/dialpad_background"
+            android:background="#00000000"
             android:scrollingCache="true"
             android:layout_height="match_parent" />
     </ViewSwitcher>
@@ -113,7 +113,7 @@
         android:layout_height="0px"
         android:layout_weight="0.150"
         android:layout_gravity="center_horizontal"
-        android:background="@drawable/dialpad_background"
+        android:background="#00000000"
         android:orientation="horizontal">
 
         <ImageButton

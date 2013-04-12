@@ -21,7 +21,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:textAppearance="?android:attr/textAppearanceMedium"
-    android:textColor="?android:attr/textColorPrimary"
+    android:textColor="@*android:color/sourceryTextColor1"
     android:imeOptions="flagNoExtractUi|flagNoFullscreen"
     android:hint="@string/enter_contact_name"
     android:minHeight="48dip"

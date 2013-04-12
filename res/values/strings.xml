@@ -14,6 +14,47 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <string name="color_ui_title">Color Settings</string>
+    <string name="pref_category_color">Change Keypad Colors</string>
+    <string name="pref_choose_all">Change All Keypad Colors At Once</string>
+    <string name="pref_choose_single">Change Each Keypad Color Individually</string>
+    <string name="pref_reset_category">Use this to apply color changes</string>
+    <string name="pref_all_key_colors">Change All Keys At Once</string>
+    <string name="pref_key_single_colors">Change Individual Key Colors</string>
+    <string name="all_keys_pref">One Color, All Keys</string>
+    <string name="all_keys_pref_summary">If checked, will apply the Dialpad Keys Color to all keys</string>
+    <string name="dialpad_color_pref_all">Dialpad Keys Color</string>
+    <string name="dialpad_color_pref_one">Number 1 Key Color</string>
+    <string name="dialpad_color_pref_two">Number 2 Key Color</string>
+    <string name="dialpad_color_pref_three">Number 3 Key Color</string>
+    <string name="dialpad_color_pref_four">Number 4 Key Color</string>
+    <string name="dialpad_color_pref_five">Number 5 Key Color</string>
+    <string name="dialpad_color_pref_six">Number 6 Key Color</string>
+    <string name="dialpad_color_pref_seven">Number 7 Key Color</string>
+    <string name="dialpad_color_pref_eight">Number 8 Key Color</string>
+    <string name="dialpad_color_pref_nine">Number 9 Key Color</string>
+    <string name="dialpad_color_pref_zero">Number 0 Key Color</string>
+    <string name="dialpad_color_pref_pound">Pound Key Color</string>
+    <string name="dialpad_color_pref_star">Star Key Color</string>
+    <string name="dialpad_color_pref_dialButton">Call Button Color</string>
+    <string name="dialpad_color_pref_deleteButton">Delete Number Button Color</string>
+    <string name="dialpad_color_pref_numberText">Text Color of the Typed Number</string>
+    <string name="dialog_color_picker">Color Picker</string>
+    <string name="press_color_to_apply">Press on Color to apply</string>
+    <string name="prefs_reset">Reset All Colors To Stock</string>
+    <string name="color_menu">Pick Dialpad Color</string>
+    <string name="restart_contacts_title">Restart to apply Color</string>
+    <string name="arrow_right">→</string>
+    <string name="arrow_down">↓</string>
+    <string name="hex">Hex:</string>
+    <string name="hex_hint">#FF000000</string>
+    <string name="ics_color">Holo</string>
+    <string name="set">Set</string>
+    <string name="bp_theme_button">BP Theme Color</string>
+    <string name="bp_text1_button">BP Text Color 1</string>
+    <string name="bp_text2_button">BP Text Color 2</string>
+
     <!-- Title for the activity that dials the phone.  This is the name
          used in the Launcher icon. -->
     <string name="launcherDialer">Phone</string>

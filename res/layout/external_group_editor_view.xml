@@ -28,7 +28,7 @@
         android:paddingLeft="10dip"
         android:paddingRight="10dip"
         android:textAppearance="?android:attr/textAppearanceSmall"
-        android:textColor="?android:attr/textColorTertiary"
+        android:textColor="@*android:color/sourceryTextColor2"
         android:text="@string/group_read_only" />
 
     <include
@@ -40,7 +40,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:textColor="?android:attr/textColorTertiary"
+        android:textColor="@*android:color/sourceryTextColor2"
         android:textStyle="bold"
         android:padding="10dip"/>
 
