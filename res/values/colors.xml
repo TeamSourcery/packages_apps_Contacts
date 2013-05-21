@@ -20,13 +20,13 @@
     <color name="shortcut_overlay_text_background">#7f000000</color>
 
     <color name="quickcontact_list_divider">@*android:color/sourceryThemeColor</color>
-    <color name="quickcontact_list_background">#ff000000</color>
+    <color name="quickcontact_list_background">#ffe2e2e2</color>
     <color name="quickcontact_tab_indicator">@*android:color/sourceryThemeColor</color>
 
     <!-- Color of the background of the contact detail and editor pages -->
-    <color name="background_primary">#ff000000</color>
+    <color name="background_primary">#FFFFFF</color>
 
-    <color name="background_social_updates">#ff000000</color>
+    <color name="background_social_updates">#ffeeeeee</color>
 
     <!-- Color used for the letter in the A-Z section header -->
     <color name="section_header_text_color">@*android:color/sourceryThemeColor</color>
@@ -103,9 +103,9 @@
     <color name="black_text">@*android:color/sourceryTextColor2</color>
     <color name="contact_tile_name_text">@*android:color/sourceryTextColor1</color>
     <color name="dialpad_switch_bg">#66000000</color>
-    <color name="account_container">#ff000000</color>
+    <color name="account_container">#eeeeee</color>
     <color name="photo_backdrop">#000000</color>
-    <color name="photo_container">#4c000000</color>
+    <color name="photo_container">#4cffffff</color>
     <color name="social_widget_bg">#00000000</color>
     <color name="contact_detail_fragment">@*android:color/sourceryTextColor1</color>
 
