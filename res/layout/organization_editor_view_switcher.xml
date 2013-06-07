@@ -32,7 +32,7 @@
         android:paddingRight="16dip"
         android:gravity="center_vertical"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:textColor="@*android:color/sourceryTextColor2"
+        android:textColor="#ff404040"
         android:background="?android:attr/selectableItemBackground"
         android:text="@string/add_organization"/>
 

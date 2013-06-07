@@ -53,19 +53,19 @@
     <color name="people_app_theme_color">@*android:color/sourceryThemeColor</color>
 
     <!-- Secondary text color in the Phone app -->
-    <color name="dialtacts_secondary_text_color">@*android:color/sourceryTextColor2</color>
+    <color name="dialtacts_secondary_text_color">#ff808080</color>
 
     <!-- Colors in the contact browser list -->
     <color name="contact_count_text_color">@*android:color/sourceryThemeColor</color>
 
     <!-- Color of the text of the tab carousel in the contact details  -->
-    <color name="detail_tab_carousel_tab_label_color">@*android:color/sourceryTextColor1</color>
+    <color name="detail_tab_carousel_tab_label_color">@*android:color/sourceryThemeColor</color>
 
     <!-- Color of the text for buttons in the action bar  -->
     <color name="action_bar_button_text_color">@*android:color/sourceryTextColor1</color>
 
     <!--  Color of the status message for starred contacts in the People app -->
-    <color name="people_contact_tile_status_color">@*android:color/sourceryTextColor1</color>
+    <color name="people_contact_tile_status_color">@*android:color/sourceryThemeColor</color>
 
     <!--  Color of the semi-transparent shadow box on contact tiles -->
     <color name="contact_tile_shadow_box_color">#7F000000</color>
@@ -100,13 +100,13 @@
     <color name="call_log_divider">#55ffffff</color>
     <color name="detail_tab_carousel_tab_label_Background_color">#7f000000</color>
     <color name="white_text">@*android:color/sourceryTextColor1</color>
-    <color name="black_text">@*android:color/sourceryTextColor2</color>
+    <color name="black_text">#ff000000</color>
     <color name="contact_tile_name_text">@*android:color/sourceryTextColor1</color>
     <color name="dialpad_switch_bg">#66000000</color>
     <color name="account_container">#eeeeee</color>
     <color name="photo_backdrop">#000000</color>
     <color name="photo_container">#4cffffff</color>
     <color name="social_widget_bg">#00000000</color>
-    <color name="contact_detail_fragment">@*android:color/sourceryTextColor1</color>
+    <color name="contact_detail_fragment">@*android:color/sourceryThemeColor</color>
 
 </resources>

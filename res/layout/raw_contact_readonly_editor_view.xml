@@ -40,7 +40,7 @@
             android:singleLine="true"
             android:ellipsize="end"
             android:textAppearance="?android:attr/textAppearanceMedium"
-            android:textColor="@*android:color/sourceryTextColor2" />
+            android:textColor="#ff404040" />
 
         <include
             android:id="@+id/edit_photo"

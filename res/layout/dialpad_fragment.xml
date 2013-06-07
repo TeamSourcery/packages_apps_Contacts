@@ -40,7 +40,7 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:textAppearance="@style/DialtactsDigitsTextAppearance"
-            android:textColor="@*android:color/sourceryTextColor1"
+            android:textColor="@*android:color/sourceryThemeColor"
             android:nextFocusRight="@+id/overflow_menu"
             android:background="@android:color/transparent" />
 

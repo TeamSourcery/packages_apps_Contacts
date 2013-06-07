@@ -35,7 +35,7 @@
         android:layout_height="match_parent"
         android:gravity="center_horizontal"
         android:layout_marginTop="@dimen/empty_message_top_margin"
-        android:textColor="@*android:color/sourceryTextColor2"
+        android:textColor="#ff404040"
         android:textAppearance="?android:attr/textAppearanceLarge"/>
 
 </FrameLayout>

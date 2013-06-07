@@ -50,7 +50,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="16sp"
-            android:textColor="@*android:color/sourceryTextColor1" />
+            android:textColor="#ff000000" />
         <!--
         Attribution (e.g. timestamp) and comments (e.g. +1, like) should align horizontally.
         Can't merge this with the parent list view.
@@ -64,7 +64,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="@*android:color/sourceryTextColor2"
+                android:textColor="#ff404040"
                 android:ellipsize="end"
                 android:maxLines="1" />
             <TextView android:id="@+id/stream_item_comments"
@@ -73,7 +73,7 @@
                 android:layout_marginLeft=
                     "@dimen/detail_update_section_attribution_comments_padding"
                 android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="@*android:color/sourceryTextColor2"
+                android:textColor="#ff404040"
                 android:maxLines="1"/>
         </LinearLayout>
     </LinearLayout>

@@ -47,7 +47,7 @@
             android:layout_weight="1"
             android:layout_gravity="center_vertical"
             android:textAppearance="?android:attr/textAppearanceMedium"
-            android:textColor="@*android:color/sourceryTextColor2"
+            android:textColor="#ff404040"
             android:singleLine="true"/>
         <TextView
             android:id="@+id/type"
@@ -55,7 +55,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:textAppearance="?android:attr/textAppearanceSmall"
-            android:textColor="@*android:color/sourceryTextColor2"
+            android:textColor="#ff404040"
             android:textAllCaps="true"
             android:singleLine="true"/>
     </LinearLayout>

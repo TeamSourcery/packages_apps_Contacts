@@ -108,7 +108,7 @@
             android:layout_marginRight="@dimen/call_log_inner_margin"
             android:layout_marginLeft="@dimen/call_detail_contact_name_margin"
             android:gravity="center_vertical"
-            android:textColor="@*android:color/sourceryTextColor1"
+            android:textColor="#ffffffff"
             android:textAppearance="?android:attr/textAppearanceMedium"
             android:singleLine="true"
         />
@@ -163,7 +163,7 @@
                         android:layout_height="wrap_content"
                         android:paddingRight="@dimen/call_log_icon_margin"
                         android:textAppearance="?android:attr/textAppearanceMedium"
-                        android:textColor="@*android:color/sourceryTextColor1"
+                        android:textColor="#ffffffff"
                         android:singleLine="true"
                         android:ellipsize="end"
                     />
@@ -173,7 +173,7 @@
                         android:layout_height="wrap_content"
                         android:paddingRight="@dimen/call_log_icon_margin"
                         android:textAppearance="?android:attr/textAppearanceSmall"
-                        android:textColor="@*android:color/sourceryTextColor1"
+                        android:textColor="#ffffffff"
                         android:textAllCaps="true"
                         android:singleLine="true"
                         android:ellipsize="end"

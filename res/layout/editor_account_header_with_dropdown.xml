@@ -48,7 +48,7 @@
              android:layout_height="wrap_content"
              android:paddingRight="8dip"
              android:textAppearance="?android:attr/textAppearanceSmall"
-             android:textColor="@*android:color/sourceryTextColor2"
+             android:textColor="#ff404040"
              android:singleLine="true"
              android:ellipsize="end" />
 
